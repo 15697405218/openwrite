@@ -20,17 +20,20 @@ OpenWrite 用来规划、整理和写作长篇故事。AI 助手使用**你自�
 
 - 🗺️ **Story map (node-based AI generation)** — describe your story in one sentence, then expand it level by level: premise → acts → chapters → scenes, each generated as connected nodes on a visual canvas with auto-layout. Chapter nodes promote directly into your manuscript
   - 🗺️ **故事地图（按节点生成）** — 用一句话描述故事，再逐层展开：前提 → 幕 → 章 → 场。每一层都是画布上相连的节点，并会自动排版。章节节点可以直接加入文稿
-- ✍️ **Rich text editor with auto-save** — a distraction-light Tiptap editor that persists your manuscript as you type, with live word counts and per-project progress tracking
-  - ✍️ **自动保存的富文本编辑器** — 基于 Tiptap，边写边保存，实时显示字数，并按项目跟踪进度
-- 📖 **Chapter management** — create, rename, reorder, and write per-chapter, with safe concurrent-edit detection
-  - 📖 **章节管理** — 按章新建、重命名、调整顺序和写作，并检测别处的并发修改
-- 🤖 **AI writing assistant (bring your own key)** — chat with an assistant that knows your project's title, genre, and characters, then insert its suggestions straight into your manuscript. Supported providers:
-  - 🤖 **AI 写作助手（自带密钥）** — 助手了解项目标题、类型和角色。建议可以直接插入文稿。支持的服务：
+- ✍️ **Rich text editor with auto-save** — a distraction-light Tiptap editor that persists your manuscript as you type, with live length counts and per-project progress tracking. Chinese, Japanese, and Korean characters count one by one; a run of Latin letters or digits counts as one word. Press Alt+/ for an inline continuation
+  - ✍️ **自动保存的富文本编辑器** — 基于 Tiptap，边写边保存，实时显示字数，并按项目跟踪进度。汉字、日文和韩文逐字计数，连续的英文或数字算一个词。按 Alt+/ 可以在光标处续写
+- 📖 **Volumes and chapters** — the manuscript is organized as volumes, then chapters. Create, rename, and reorder them, with safe concurrent-edit detection. A chapter can link the characters, locations, and plot threads it uses. Starting the next chapter can summarize the one you just finished. Notes stay on the project
+  - 📖 **卷和章** — 文稿按卷、再按章组织。可以新建、重命名和调整顺序，并检测别处的并发修改。一章可以绑上它用到的角色、地点和情节线。新建下一章时可以为刚写完的一章生成摘要。笔记留在项目上
+- 🤖 **AI writing assistant (bring your own key)** — the sidebar chat is built from the chapter you have open: recent chapters, characters, locations, lore, plot threads, and summaries. Changes to the manuscript wait for your approval; you can allow direct writes to the open chapter for the rest of that chat. The conversation runs on LangGraph with checkpoints in D1, so a crash resumes from the last finished step. A reply cut off by the token limit continues from the cutoff, and a replayed write is not appended twice. Supported providers:
+  - 🤖 **AI 写作助手（自带密钥）** — 侧边栏对话按当前打开的章节组装：前几章、角色、地点、世界观、情节线和摘要。改稿会先等你确认；也可以让这次对话直接写入当前章。对话跑在 LangGraph 上，检查点存在 D1，中断后从上次走完的步骤继续。回复被 token 上限截断时从断点续写，重放不会把同一段再追加一遍。支持的服务：
   - OpenRouter (one key, hundreds of models — easiest start) / OpenRouter（一把密钥用上百种模型，最容易上手）
   - OpenAI, Anthropic, Groq, Gemini, Cohere
+  - A custom OpenAI-compatible endpoint / 自定义的 OpenAI 兼容接口
   - Ollama (fully local models, fully private) / Ollama（模型完全在本机运行，数据留在本地）
-- 📚 **Codex** — structured world-building: characters, locations, lore entries, and plot points, organized per project
-  - 📚 **设定集** — 按项目整理角色、地点、世界观和情节点
+- 📚 **Codex** — structured world-building: characters, locations, lore entries, and plot points, organized per project, with summaries you can generate and attach to a chapter
+  - 📚 **设定集** — 按项目整理角色、地点、世界观和情节点，可以生成摘要并附到章节上
+- 🌐 **Chinese and English** — the writing interface switches language
+  - 🌐 **中文和英文** — 写作界面可以切换语言
 - 📤 **Markdown export** — download your full manuscript as Markdown
   - 📤 **Markdown 导出** — 把整部文稿下载为 Markdown
 - 🗂️ **Projects** — novels, trilogies, series, short story collections, screenplays; genre, status, and target word count tracking
