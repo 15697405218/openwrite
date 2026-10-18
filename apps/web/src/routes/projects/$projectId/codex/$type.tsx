@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { fill, useLocale } from "@/i18n/locale"
 import { api } from "@/lib/api"
 
 export const Route = createFileRoute("/projects/$projectId/codex/$type")({
@@ -151,10 +152,15 @@ function getBinding(type: string, projectId: string): CodexBinding | null {
 }
 
 function CodexTypeInterface() {
+  const { messages: m } = useLocale()
   const { type, projectId } = Route.useParams()
   const queryClient = useQueryClient()
 
   const config = CODEX_CONFIG[type] ?? FALLBACK_CONFIG
+  const page =
+    type in m.codex.pages
+      ? m.codex.pages[type as keyof typeof m.codex.pages]
+      : m.codex.pages.fallback
   const IconComponent = config.icon
   const binding = getBinding(type, projectId)
 
@@ -181,11 +187,11 @@ function CodexTypeInterface() {
     },
     onSuccess: () => {
       invalidate()
-      toast.success(`${config.nounLabel} added`)
+      toast.success(fill(m.codex.added, { noun: page.noun }))
       setDialogOpen(false)
     },
     onError: (error) =>
-      toast.error(`Failed to add ${config.nounLabel.toLowerCase()}: ${error.message}`),
+      toast.error(fill(m.codex.addFailed, { noun: page.noun, message: error.message })),
   })
 
   const updateMutation = useMutation({
@@ -197,11 +203,11 @@ function CodexTypeInterface() {
     },
     onSuccess: () => {
       invalidate()
-      toast.success(`${config.nounLabel} updated`)
+      toast.success(fill(m.codex.updatedNoun, { noun: page.noun }))
       setEditingEntry(null)
     },
     onError: (error) =>
-      toast.error(`Failed to update ${config.nounLabel.toLowerCase()}: ${error.message}`),
+      toast.error(fill(m.codex.updateFailedNoun, { noun: page.noun, message: error.message })),
   })
 
   const deleteMutation = useMutation({
@@ -213,11 +219,11 @@ function CodexTypeInterface() {
     },
     onSuccess: () => {
       invalidate()
-      toast.success(`${config.nounLabel} deleted`)
+      toast.success(fill(m.codex.deletedNoun, { noun: page.noun }))
       setDeletingEntry(null)
     },
     onError: (error) =>
-      toast.error(`Failed to delete ${config.nounLabel.toLowerCase()}: ${error.message}`),
+      toast.error(fill(m.codex.deleteFailedNoun, { noun: page.noun, message: error.message })),
   })
 
   const handleSubmit = (values: CodexEntryValues) => {
@@ -235,9 +241,9 @@ function CodexTypeInterface() {
           <div>
             <h1 className="flex items-center gap-3 font-bold text-3xl">
               <IconComponent className="h-8 w-8" />
-              {config.title}
+              {page.title}
             </h1>
-            <p className="mt-2 text-muted-foreground">{config.description}</p>
+            <p className="mt-2 text-muted-foreground">{page.description}</p>
           </div>
           {binding && (
             <Button
@@ -248,7 +254,7 @@ function CodexTypeInterface() {
               type="button"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Add {config.nounLabel}
+              {fill(m.codex.addNoun, { noun: page.noun })}
             </Button>
           )}
         </div>
@@ -307,9 +313,7 @@ function CodexTypeInterface() {
           <div className="py-12 text-center">
             <IconComponent className="mx-auto mb-4 h-16 w-16 opacity-50" />
             <h3 className="mb-2 font-medium text-xl">No {config.title.toLowerCase()} yet</h3>
-            <p className="mb-6 text-muted-foreground">
-              Create your first {config.nounLabel.toLowerCase()} to start building your story world.
-            </p>
+            <p className="mb-6 text-muted-foreground">{fill(m.codex.empty, { noun: page.noun })}</p>
             <Button
               onClick={() => {
                 setEditingEntry(null)
@@ -318,7 +322,7 @@ function CodexTypeInterface() {
               type="button"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Add {config.nounLabel}
+              {fill(m.codex.addNoun, { noun: page.noun })}
             </Button>
           </div>
         )}
@@ -332,7 +336,7 @@ function CodexTypeInterface() {
           key={editingEntry?.id ?? "new"}
           mode={editingEntry ? "edit" : "create"}
           nameLabel={config.nameLabel}
-          nounLabel={config.nounLabel}
+          nounLabel={page.noun}
           onOpenChange={(open) => {
             setDialogOpen(open)
             if (!open) {
@@ -350,20 +354,21 @@ function CodexTypeInterface() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {config.nounLabel}</AlertDialogTitle>
+            <AlertDialogTitle>{fill(m.codex.deleteNoun, { noun: page.noun })}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deletingEntry?.label}</strong>? This action
-              cannot be undone.
+              {fill(m.codex.deleteNounBody, { name: deletingEntry?.label ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {m.common.cancel}
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending}
               onClick={() => deletingEntry && deleteMutation.mutate(deletingEntry.id)}
             >
-              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+              {deleteMutation.isPending ? m.codex.deleting : m.common.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

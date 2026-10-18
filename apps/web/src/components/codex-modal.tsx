@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { fill, useLocale } from "@/i18n/locale"
 
 import { api, type Character, type Location } from "@/lib/api"
 
@@ -51,6 +52,7 @@ export default function CodexModal({
   initialType = null,
   initialEntry = null,
 }: CodexModalProps) {
+  const { messages: m } = useLocale()
   const [selectedType, setSelectedType] = useState(initialType || "characters")
   const [selectedEntry, setSelectedEntry] = useState<string | null>(initialEntry)
   const [searchTerm, setSearchTerm] = useState("")
@@ -110,11 +112,11 @@ export default function CodexModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
-      toast.success("Character updated successfully!")
+      toast.success(m.codex.characterUpdated)
       setIsEditing(false)
     },
     onError: (error) => {
-      toast.error(`Failed to update character: ${error.message}`)
+      toast.error(fill(m.codex.characterUpdateFailed, { message: error.message }))
     },
   })
 
@@ -131,11 +133,11 @@ export default function CodexModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
-      toast.success("Location updated successfully!")
+      toast.success(m.codex.locationUpdated)
       setIsEditing(false)
     },
     onError: (error) => {
-      toast.error(`Failed to update location: ${error.message}`)
+      toast.error(fill(m.codex.locationUpdateFailed, { message: error.message }))
     },
   })
 
@@ -145,61 +147,62 @@ export default function CodexModal({
   const notes: Array<{ id: string; name: string; description: string }> = []
 
   const getTypeConfig = (typeParam: string) => {
+    const blank = m.codex.noDescription
     switch (typeParam) {
       case "characters":
         return {
-          title: "Characters",
-          description: "Manage your story's characters",
+          title: m.codex.pages.characters.title,
+          description: m.codex.pages.characters.description,
           icon: Users,
           entries: characters.map((char) => ({
             ...char,
-            description: char.description || "No description available",
+            description: char.description || blank,
           })),
         }
       case "locations":
         return {
-          title: "Locations",
-          description: "Track your story's places and settings",
+          title: m.codex.pages.locations.title,
+          description: m.codex.pages.locations.description,
           icon: MapPin,
           entries: locations.map((location) => ({
             ...location,
-            description: location.description || "No description available",
+            description: location.description || blank,
           })),
         }
       case "lore":
         return {
-          title: "Lore & World-building",
-          description: "Document your world's history and rules",
+          title: m.codex.pages.lore.title,
+          description: m.codex.pages.lore.description,
           icon: Scroll,
           entries: loreEntries.map((lore) => ({
             ...lore,
-            description: lore.description || "No description available",
+            description: lore.description || blank,
           })),
         }
       case "plot":
         return {
-          title: "Plot Threads",
-          description: "Track your story's narrative threads and arcs",
+          title: m.codex.pages.plot.title,
+          description: m.codex.pages.plot.description,
           icon: FileText,
           entries: plotThreads.map((plot) => ({
             ...plot,
-            description: plot.description || "No description available",
+            description: plot.description || blank,
           })),
         }
       case "notes":
         return {
-          title: "Notes & Ideas",
-          description: "Quick notes and ideas for your story",
+          title: m.sidebar.notes,
+          description: m.codex.notesHint,
           icon: Zap,
           entries: notes.map((note) => ({
             ...note,
-            description: note.description || "No description available",
+            description: note.description || blank,
           })),
         }
       default:
         return {
-          title: "Codex",
-          description: "Manage your story elements",
+          title: m.sidebar.codex,
+          description: m.codex.manageElements,
           icon: FileText,
           entries: [],
         }
@@ -282,17 +285,17 @@ export default function CodexModal({
     // Return generic role based on type since specific role/type fields are removed
     switch (type) {
       case "characters":
-        return "Character"
+        return m.codex.pages.characters.noun
       case "locations":
-        return "Location"
+        return m.codex.pages.locations.noun
       case "lore":
-        return "Lore Entry"
+        return m.codex.pages.lore.noun
       case "plot":
-        return "Plot Thread"
+        return m.codex.pages.plot.noun
       case "notes":
-        return "Note"
+        return m.sidebar.notes
       default:
-        return "Entry"
+        return m.codex.pages.fallback.noun
     }
   }
 
@@ -304,19 +307,17 @@ export default function CodexModal({
           <div className="border-b p-4">
             <div className="flex items-center gap-3">
               <IconComponent className="h-5 w-5" />
-              <h3 className="font-semibold">Create New {selectedType.slice(0, -1)}</h3>
+              <h3 className="font-semibold">{fill(m.codex.createNamed, { name: config.title })}</h3>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-6">
             <div className="text-center text-muted-foreground">
               <IconComponent className="mx-auto mb-4 h-16 w-16 opacity-20" />
-              <h3 className="mb-2 font-semibold">Create New {selectedType.slice(0, -1)}</h3>
-              <p className="mb-4 text-sm">
-                Creation forms for {selectedType} will be implemented here.
-              </p>
-              <p className="text-xs">
-                For now, use the sidebar "New" buttons to create {selectedType}.
-              </p>
+              <h3 className="mb-2 font-semibold">
+                {fill(m.codex.createNamed, { name: config.title })}
+              </h3>
+              <p className="mb-4 text-sm">{fill(m.codex.creationSoon, { name: config.title })}</p>
+              <p className="text-xs">{fill(m.codex.creationSidebar, { name: config.title })}</p>
             </div>
           </div>
         </div>
@@ -341,9 +342,9 @@ export default function CodexModal({
           <div className="flex-1 overflow-y-auto p-4">
             <Tabs className="w-full" defaultValue="overview">
               <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="connections">Connections</TabsTrigger>
+                <TabsTrigger value="overview">{m.canvas.overview}</TabsTrigger>
+                <TabsTrigger value="details">{m.codex.details}</TabsTrigger>
+                <TabsTrigger value="connections">{m.canvas.connections}</TabsTrigger>
               </TabsList>
 
               <TabsContent className="mt-6" value="overview">
@@ -352,21 +353,21 @@ export default function CodexModal({
                     // Edit mode
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="edit-name">Name</Label>
+                        <Label htmlFor="edit-name">{m.codex.nameLabel}</Label>
                         <Input
                           id="edit-name"
                           onChange={(e) => setEditName(e.target.value)}
-                          placeholder="Enter name..."
+                          placeholder={m.codex.namePlaceholder}
                           value={editName}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="edit-description">Description</Label>
+                        <Label htmlFor="edit-description">{m.projects.description}</Label>
                         <Textarea
                           id="edit-description"
                           onChange={(e) => setEditDescription(e.target.value)}
-                          placeholder="Enter description..."
+                          placeholder={m.codex.descriptionPlaceholder}
                           rows={4}
                           value={editDescription}
                         />
@@ -403,11 +404,11 @@ export default function CodexModal({
                         >
                           <Save className="mr-2 h-4 w-4" />
                           {updateCharacterMutation.isPending || updateLocationMutation.isPending
-                            ? "Updating..."
-                            : "Update"}
+                            ? m.auth.updating
+                            : m.common.save}
                         </Button>
                         <Button onClick={() => setIsEditing(false)} size="sm" variant="outline">
-                          Cancel
+                          {m.common.cancel}
                         </Button>
                         <Button
                           onClick={() => {
@@ -421,7 +422,7 @@ export default function CodexModal({
                           variant="destructive"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
+                          {m.common.delete}
                         </Button>
                       </div>
                     </div>
@@ -430,7 +431,7 @@ export default function CodexModal({
                     <div className="space-y-6">
                       <div>
                         <div className="mb-2 flex items-center justify-between">
-                          <h4 className="font-medium">Name</h4>
+                          <h4 className="font-medium">{m.codex.nameLabel}</h4>
                           <Button
                             onClick={() => {
                               setEditName(selectedEntryData.name)
@@ -440,16 +441,16 @@ export default function CodexModal({
                             size="sm"
                             variant="outline"
                           >
-                            Edit
+                            {m.common.edit}
                           </Button>
                         </div>
                         <p className="text-muted-foreground text-sm">{selectedEntryData.name}</p>
                       </div>
 
                       <div>
-                        <h4 className="mb-2 font-medium">Description</h4>
+                        <h4 className="mb-2 font-medium">{m.projects.description}</h4>
                         <p className="text-muted-foreground text-sm leading-relaxed">
-                          {selectedEntryData.description || "No description available"}
+                          {selectedEntryData.description || m.codex.noDescription}
                         </p>
                       </div>
                     </div>
@@ -463,7 +464,7 @@ export default function CodexModal({
 
                   {selectedType === "locations" && (
                     <div>
-                      <h4 className="mb-2 font-medium">Location Details</h4>
+                      <h4 className="mb-2 font-medium">{m.codex.locationDetails}</h4>
                       <p className="text-muted-foreground text-sm leading-relaxed">
                         {selectedEntryData.description}
                       </p>
@@ -474,10 +475,8 @@ export default function CodexModal({
 
               <TabsContent className="mt-6" value="connections">
                 <div className="space-y-4">
-                  <h4 className="font-medium">Related Elements</h4>
-                  <p className="text-muted-foreground text-sm">
-                    Connections and relationships will be shown here.
-                  </p>
+                  <h4 className="font-medium">{m.codex.related}</h4>
+                  <p className="text-muted-foreground text-sm">{m.codex.relatedSoon}</p>
                 </div>
               </TabsContent>
             </Tabs>
@@ -492,7 +491,9 @@ export default function CodexModal({
           <IconComponent className="mx-auto mb-4 h-16 w-16 opacity-20" />
           <h3 className="mb-2 font-semibold">{config.title}</h3>
           <p className="mb-4 text-muted-foreground text-sm">{config.description}</p>
-          <Button onClick={handleCreateNew}>Create New {selectedType.slice(0, -1)}</Button>
+          <Button onClick={handleCreateNew}>
+            {fill(m.codex.createNamed, { name: config.title })}
+          </Button>
         </div>
       </div>
     )
@@ -507,9 +508,9 @@ export default function CodexModal({
             <div className="flex w-64 flex-col border-r bg-muted/50">
               <div className="p-4">
                 <DialogHeader>
-                  <DialogTitle className="text-left">Codex</DialogTitle>
+                  <DialogTitle className="text-left">{m.sidebar.codex}</DialogTitle>
                   <DialogDescription className="text-left">
-                    Manage your story elements
+                    {m.codex.manageElements}
                   </DialogDescription>
                 </DialogHeader>
               </div>
@@ -519,19 +520,29 @@ export default function CodexModal({
                   {[
                     {
                       key: "characters",
-                      label: "Characters",
+                      label: m.codex.pages.characters.title,
                       icon: Users,
                       count: characters.length,
                     },
-                    { key: "locations", label: "Locations", icon: MapPin, count: locations.length },
-                    { key: "lore", label: "Lore", icon: Scroll, count: loreEntries.length },
+                    {
+                      key: "locations",
+                      label: m.codex.pages.locations.title,
+                      icon: MapPin,
+                      count: locations.length,
+                    },
+                    {
+                      key: "lore",
+                      label: m.codex.pages.lore.title,
+                      icon: Scroll,
+                      count: loreEntries.length,
+                    },
                     {
                       key: "plot",
-                      label: "Plot Threads",
+                      label: m.codex.pages.plot.title,
                       icon: FileText,
                       count: plotThreads.length,
                     },
-                    { key: "notes", label: "Notes", icon: Zap, count: notes.length },
+                    { key: "notes", label: m.sidebar.notes, icon: Zap, count: notes.length },
                   ].map((item) => (
                     <Button
                       className={`w-full justify-start ${selectedType === item.key ? "bg-accent" : ""}`}
@@ -564,11 +575,11 @@ export default function CodexModal({
                       variant="outline"
                     >
                       <Sparkles className="h-4 w-4" />
-                      Create New
+                      {m.codex.createNew}
                     </Button>
                     <Button className="w-full gap-2" size="sm" variant="outline">
                       <Settings className="h-4 w-4" />
-                      Templates
+                      {m.codex.templates}
                     </Button>
                   </div>
                 </div>
@@ -588,7 +599,7 @@ export default function CodexModal({
                 <Input
                   className="mt-3"
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder={`Search ${config.title.toLowerCase()}...`}
+                  placeholder={fill(m.codex.search, { name: config.title })}
                   value={searchTerm}
                 />
               </div>
@@ -625,15 +636,17 @@ export default function CodexModal({
                   {filteredEntries.length === 0 && !isCreating && (
                     <div className="py-8 text-center text-muted-foreground">
                       <IconComponent className="mx-auto mb-3 h-12 w-12 opacity-20" />
-                      <p className="mb-2 font-medium">No {config.title.toLowerCase()} found</p>
+                      <p className="mb-2 font-medium">
+                        {fill(m.codex.noneFound, { name: config.title })}
+                      </p>
                       <p className="text-sm">
                         {searchTerm
-                          ? "Try adjusting your search"
-                          : `Create your first ${selectedType.slice(0, -1)}`}
+                          ? m.codex.trySearch
+                          : fill(m.codex.createFirst, { name: config.title })}
                       </p>
                       {!searchTerm && (
                         <Button className="mt-3" onClick={handleCreateNew} size="sm">
-                          Create New
+                          {m.codex.createNew}
                         </Button>
                       )}
                     </div>

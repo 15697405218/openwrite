@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useLocale } from "@/i18n/locale"
 import { authClient } from "@/lib/auth-client"
 
 interface ResetPasswordSearch {
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/reset-password")({
 })
 
 function ResetPasswordPage() {
+  const { messages: m } = useLocale()
   const { token, error } = Route.useSearch()
   const navigate = useNavigate()
   const [password, setPassword] = useState("")
@@ -34,24 +36,24 @@ function ResetPasswordPage() {
       return
     }
     if (password.length < 8) {
-      toast.error("Password must be at least 8 characters")
+      toast.error(m.auth.passwordMin)
       return
     }
     if (password !== confirm) {
-      toast.error("Passwords don't match")
+      toast.error(m.auth.passwordMismatch)
       return
     }
     setSubmitting(true)
     try {
       const result = await authClient.resetPassword({ newPassword: password, token })
       if (result.error) {
-        toast.error(result.error.message || "Failed to reset password")
+        toast.error(result.error.message || m.auth.resetFailed)
         return
       }
-      toast.success("Password updated — sign in with your new password")
+      toast.success(m.auth.passwordUpdated)
       navigate({ to: "/login" })
     } catch {
-      toast.error("Failed to reset password")
+      toast.error(m.auth.resetFailed)
     } finally {
       setSubmitting(false)
     }
@@ -61,22 +63,20 @@ function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md space-y-6">
         <div className="space-y-2 text-center">
-          <h1 className="font-bold text-3xl">Choose a new password</h1>
+          <h1 className="font-bold text-3xl">{m.auth.newPasswordTitle}</h1>
         </div>
 
         {linkInvalid ? (
           <div className="space-y-4 text-center">
-            <p className="rounded-lg border bg-muted/30 p-4 text-sm">
-              This reset link is invalid or has expired. Request a new one and try again.
-            </p>
+            <p className="rounded-lg border bg-muted/30 p-4 text-sm">{m.auth.linkInvalid}</p>
             <Button asChild className="w-full">
-              <Link to="/forgot-password">Request a new link</Link>
+              <Link to="/forgot-password">{m.auth.requestNewLink}</Link>
             </Button>
           </div>
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="new-password">New password</Label>
+              <Label htmlFor="new-password">{m.auth.newPassword}</Label>
               <Input
                 id="new-password"
                 onChange={(e) => setPassword(e.target.value)}
@@ -85,7 +85,7 @@ function ResetPasswordPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm password</Label>
+              <Label htmlFor="confirm-password">{m.auth.confirmPassword}</Label>
               <Input
                 id="confirm-password"
                 onChange={(e) => setConfirm(e.target.value)}
@@ -98,14 +98,14 @@ function ResetPasswordPage() {
               disabled={!(password && confirm) || submitting}
               type="submit"
             >
-              {submitting ? "Updating…" : "Update password"}
+              {submitting ? m.auth.updating : m.auth.updatePassword}
             </Button>
           </form>
         )}
 
         <p className="text-center text-muted-foreground text-sm">
           <Link className="underline-offset-4 hover:text-primary hover:underline" to="/login">
-            Back to sign in
+            {m.auth.backToSignIn}
           </Link>
         </p>
       </div>

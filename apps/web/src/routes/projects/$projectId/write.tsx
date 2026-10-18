@@ -7,34 +7,37 @@ import { GuidedTour, type TourStep, useTour } from "@/components/guided-tour"
 import { StatusBar } from "@/components/status-bar"
 import TiptapEditor from "@/components/tiptap-editor"
 import { Button } from "@/components/ui/button"
+import { fill, useLocale } from "@/i18n/locale"
 import { ApiError, api } from "@/lib/api"
-import { type SaveState, saveStatusText } from "@/lib/save-status"
+import { type SaveState, type SaveStatusCopy, saveStatusText } from "@/lib/save-status"
 import { countWordsInHtml } from "@/lib/word-count"
 
 const AUTOSAVE_DELAY_MS = 1500
 
-const WRITE_TOUR_STEPS: TourStep[] = [
-  {
-    target: '[data-tour="editor"]',
-    title: "Your manuscript",
-    body: "Write here — everything saves automatically as you type. Formatting lives in the toolbar above.",
-  },
-  {
-    target: '[data-tour="chapters"]',
-    title: "Chapters",
-    body: "Create, rename, and reorder chapters. Word counts update live as you write.",
-  },
-  {
-    target: '[data-tour="ai-assistant"]',
-    title: "AI assistant",
-    body: "Chat with an assistant that knows your project and characters, then insert its suggestions straight into the manuscript. Toggle it with ⌘J.",
-  },
-  {
-    target: '[data-tour="story-map"]',
-    title: "Map your story",
-    body: "Plan visually: describe your story in one sentence and expand it into acts, chapters, and scenes with AI — then promote chapters back into the manuscript.",
-  },
-]
+function writeTourSteps(m: ReturnType<typeof useLocale>["messages"]): TourStep[] {
+  return [
+    {
+      target: '[data-tour="editor"]',
+      title: m.tour.manuscriptTitle,
+      body: m.tour.manuscriptBody,
+    },
+    {
+      target: '[data-tour="chapters"]',
+      title: m.tour.chaptersTitle,
+      body: m.tour.chaptersBody,
+    },
+    {
+      target: '[data-tour="ai-assistant"]',
+      title: m.tour.assistantTitle,
+      body: m.tour.assistantBody,
+    },
+    {
+      target: '[data-tour="story-map"]',
+      title: m.tour.mapTitle,
+      body: m.tour.mapBody,
+    },
+  ]
+}
 
 export const Route = createFileRoute("/projects/$projectId/write")({
   component: WriteInterface,
@@ -42,8 +45,19 @@ export const Route = createFileRoute("/projects/$projectId/write")({
 
 function WriteInterface() {
   const { projectId } = Route.useParams()
+  const { messages: m } = useLocale()
   const queryClient = useQueryClient()
   const tour = useTour("openwrite-tour-write-v1")
+  const saveCopy: SaveStatusCopy = {
+    unsaved: m.save.unsaved,
+    saving: m.save.saving,
+    failed: m.save.failed,
+    conflict: m.save.conflict,
+    saved: m.save.saved,
+    savedAt: (time) => fill(m.save.savedAt, { time }),
+    lastSavedAt: (time) => fill(m.save.lastSavedAt, { time }),
+    notSaved: m.save.notSaved,
+  }
 
   const { data: chapters = [], isLoading: chaptersLoading } = useQuery({
     queryKey: ["chapters", projectId],
@@ -134,7 +148,7 @@ function WriteInterface() {
         conflictRef.current = true
         pendingRef.current.dirty = false
         setSaveState("conflict")
-        toast.error("This chapter was edited elsewhere.", {
+        toast.error(m.chapters.editedElsewhere, {
           description: "Reload to get the latest version. Unsaved changes here will be lost.",
           action: { label: "Reload", onClick: reloadChapter },
           duration: Number.POSITIVE_INFINITY,
@@ -218,7 +232,7 @@ function WriteInterface() {
   if (chaptersLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading your manuscript…</div>
+        <div className="animate-pulse text-muted-foreground">{m.chapters.loadingManuscript}</div>
       </div>
     )
   }
@@ -237,17 +251,17 @@ function WriteInterface() {
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
             {createFirstChapter.isError ? (
               <>
-                <p className="text-muted-foreground">Every novel starts with a first chapter.</p>
+                <p className="text-muted-foreground">{m.chapters.firstChapter}</p>
                 <Button
                   disabled={createFirstChapter.isPending}
                   onClick={() => createFirstChapter.mutate()}
                   type="button"
                 >
-                  Create Chapter 1
+                  {m.chapters.createFirst}
                 </Button>
               </>
             ) : (
-              <p className="animate-pulse text-muted-foreground">Preparing your first chapter…</p>
+              <p className="animate-pulse text-muted-foreground">{m.chapters.preparing}</p>
             )}
           </div>
         )}
@@ -257,19 +271,21 @@ function WriteInterface() {
             <div className="flex-1 overflow-auto" data-tour="editor">
               {contentLoading || !doc ? (
                 <div className="flex h-full items-center justify-center">
-                  <div className="animate-pulse text-muted-foreground">Loading chapter…</div>
+                  <div className="animate-pulse text-muted-foreground">
+                    {m.chapters.loadingChapter}
+                  </div>
                 </div>
               ) : (
                 <TiptapEditor
                   content={doc.content}
                   key={`${selectedChapterId}:${doc.updatedAt}`}
                   onUpdate={handleEditorUpdate}
-                  placeholder="Begin your story... Ask the AI assistant for help with characters, plot, or writing style."
+                  placeholder={m.chapters.placeholder}
                 />
               )}
             </div>
             <StatusBar
-              lastSavedText={saveStatusText(saveState, savedAt)}
+              lastSavedText={saveStatusText(saveState, savedAt, saveCopy)}
               onShowGuide={tour.start}
               wordCount={wordCount}
             />
@@ -282,7 +298,7 @@ function WriteInterface() {
       <GuidedTour
         onFinish={tour.finish}
         open={tour.open && chapters.length > 0 && Boolean(doc)}
-        steps={WRITE_TOUR_STEPS}
+        steps={writeTourSteps(m)}
       />
     </div>
   )

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { fill, useLocale } from "@/i18n/locale"
 import { api, type Location } from "@/lib/api"
 
 const locationSchema = z.object({
@@ -50,6 +51,7 @@ export function LocationDialog({
   location,
   mode,
 }: LocationDialogProps) {
+  const { messages: m } = useLocale()
   const queryClient = useQueryClient()
 
   const form = useForm<LocationFormData>({
@@ -78,12 +80,12 @@ export function LocationDialog({
     mutationFn: (data: LocationFormData) => api.locations.create(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
-      toast.success("Location created successfully!")
+      toast.success(m.codex.locationCreated)
       onOpenChange(false)
       form.reset()
     },
     onError: (error) => {
-      toast.error(`Failed to create location: ${error.message}`)
+      toast.error(fill(m.codex.locationCreateFailed, { message: error.message }))
     },
   })
 
@@ -96,11 +98,11 @@ export function LocationDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
-      toast.success("Location updated successfully!")
+      toast.success(m.codex.locationUpdated)
       onOpenChange(false)
     },
     onError: (error) => {
-      toast.error(`Failed to update location: ${error.message}`)
+      toast.error(fill(m.codex.locationUpdateFailed, { message: error.message }))
     },
   })
 
@@ -119,12 +121,12 @@ export function LocationDialog({
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Create New Location" : `Edit ${location?.name}`}
+            {mode === "create"
+              ? m.codex.createLocation
+              : fill(m.codex.editNamed, { name: location?.name ?? "" })}
           </DialogTitle>
           <DialogDescription>
-            {mode === "create"
-              ? "Add a new location to your project's world."
-              : "Update the location's information."}
+            {mode === "create" ? m.codex.addLocationHint : m.codex.updateLocationHint}
           </DialogDescription>
         </DialogHeader>
 
@@ -135,9 +137,9 @@ export function LocationDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name *</FormLabel>
+                  <FormLabel>{m.codex.nameLabel}</FormLabel>
                   <FormControl>
-                    <Input {...field} name="location_name" placeholder="Location name" />
+                    <Input {...field} name="location_name" placeholder={m.codex.locationName} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -149,11 +151,11 @@ export function LocationDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{m.projects.description}</FormLabel>
                   <FormControl>
                     <Textarea
                       className="min-h-[100px]"
-                      placeholder="Describe this location, its atmosphere, key features, and what type of place it is..."
+                      placeholder={m.codex.locationDescription}
                       {...field}
                     />
                   </FormControl>
@@ -167,9 +169,9 @@ export function LocationDialog({
               name="parentLocationId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Parent Location</FormLabel>
+                  <FormLabel>{m.codex.parentLocation}</FormLabel>
                   <FormControl>
-                    <Input placeholder="ID of parent location (optional)" {...field} />
+                    <Input placeholder={m.codex.parentPlaceholder} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -181,9 +183,12 @@ export function LocationDialog({
               name="image"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Image URL</FormLabel>
+                  <FormLabel>{m.codex.imageUrl}</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://example.com/image.jpg (optional)" {...field} />
+                    <Input
+                      placeholder={`https://example.com/image.jpg (${m.common.optional})`}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -197,14 +202,14 @@ export function LocationDialog({
                 type="button"
                 variant="outline"
               >
-                Cancel
+                {m.common.cancel}
               </Button>
               <Button disabled={isLoading} type="submit">
                 {(() => {
                   if (isLoading) {
-                    return "Saving..."
+                    return m.codex.saving
                   }
-                  return mode === "create" ? "Create Location" : "Update Location"
+                  return mode === "create" ? m.codex.createLocationButton : m.codex.updateLocation
                 })()}
               </Button>
             </DialogFooter>

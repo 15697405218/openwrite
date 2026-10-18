@@ -12,6 +12,7 @@ import { EditorContent, useEditor } from "@tiptap/react"
 import { StarterKit } from "@tiptap/starter-kit"
 import { useEffect } from "react"
 import { EditorToolbar } from "@/components/editor-toolbar"
+import { useLocale } from "@/i18n/locale"
 import { setActiveEditor } from "@/lib/active-editor"
 
 interface TiptapEditorProps {
@@ -20,11 +21,8 @@ interface TiptapEditorProps {
   placeholder?: string
 }
 
-export default function TiptapEditor({
-  content = "",
-  onUpdate,
-  placeholder = "Write something beautiful...",
-}: TiptapEditorProps) {
+export default function TiptapEditor({ content = "", onUpdate, placeholder }: TiptapEditorProps) {
+  const { messages: m } = useLocale()
   const editor = useEditor({
     shouldRerenderOnTransaction: true,
     immediatelyRender: true,
@@ -75,7 +73,7 @@ export default function TiptapEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       Placeholder.configure({
-        placeholder,
+        placeholder: placeholder ?? m.editor.writePlaceholder,
       }),
     ],
     content,
@@ -97,7 +95,7 @@ export default function TiptapEditor({
   }, [editor])
 
   if (!editor) {
-    return <div className="animate-pulse">Loading editor...</div>
+    return <div className="animate-pulse">{m.writing.loadingEditor}</div>
   }
 
   return (
@@ -105,7 +103,7 @@ export default function TiptapEditor({
       <EditorToolbar editor={editor} />
 
       <button
-        aria-label="Text editor content area"
+        aria-label={m.editor.contentLabel}
         className="tiptap-editor-content h-full flex-1 cursor-text overflow-auto text-left"
         onClick={() => {
           if (editor && !editor.isFocused) {

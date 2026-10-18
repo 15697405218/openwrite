@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { fill, useLocale } from "@/i18n/locale"
 
 /**
  * Lightweight shepherd-style walkthrough: a dimmed overlay with a spotlight
@@ -74,6 +75,7 @@ function rectFor(selector: string): SpotRect | null {
 }
 
 export function GuidedTour({ open, steps, onFinish }: GuidedTourProps) {
+  const { messages: m } = useLocale()
   const [index, setIndex] = useState(0)
   const [rect, setRect] = useState<SpotRect | null>(null)
   // Steps whose targets exist right now (views differ by state, e.g. an empty
@@ -152,13 +154,13 @@ export function GuidedTour({ open, steps, onFinish }: GuidedTourProps) {
         style={{ top: cardTop, left: cardLeft, width: CARD_WIDTH }}
       >
         <div className="mb-1 text-muted-foreground text-xs">
-          {index + 1} of {visibleSteps.length}
+          {fill(m.tour.of, { current: index + 1, total: visibleSteps.length })}
         </div>
         <h3 className="font-semibold text-sm">{step.title}</h3>
         <p className="mt-1 text-muted-foreground text-sm leading-relaxed">{step.body}</p>
         <div className="mt-4 flex items-center justify-between">
           <Button onClick={onFinish} size="sm" type="button" variant="ghost">
-            Skip
+            {m.common.skip}
           </Button>
           <div className="flex gap-2">
             {index > 0 && (
@@ -168,7 +170,7 @@ export function GuidedTour({ open, steps, onFinish }: GuidedTourProps) {
                 type="button"
                 variant="outline"
               >
-                Back
+                {m.common.back}
               </Button>
             )}
             <Button
@@ -176,7 +178,7 @@ export function GuidedTour({ open, steps, onFinish }: GuidedTourProps) {
               size="sm"
               type="button"
             >
-              {isLast ? "Done" : "Next"}
+              {isLast ? m.common.done : m.common.next}
             </Button>
           </div>
         </div>

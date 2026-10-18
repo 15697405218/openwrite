@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { fill, useLocale } from "@/i18n/locale"
 import { api, type Character } from "@/lib/api"
 
 const characterSchema = z.object({
@@ -49,6 +50,7 @@ export function CharacterDialog({
   character,
   mode,
 }: CharacterDialogProps) {
+  const { messages: m } = useLocale()
   const queryClient = useQueryClient()
 
   const form = useForm<CharacterFormData>({
@@ -75,12 +77,12 @@ export function CharacterDialog({
     mutationFn: (data: CharacterFormData) => api.characters.create(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
-      toast.success("Character created successfully!")
+      toast.success(m.codex.characterCreated)
       onOpenChange(false)
       form.reset()
     },
     onError: (error) => {
-      toast.error(`Failed to create character: ${error.message}`)
+      toast.error(fill(m.codex.characterCreateFailed, { message: error.message }))
     },
   })
 
@@ -93,11 +95,11 @@ export function CharacterDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
-      toast.success("Character updated successfully!")
+      toast.success(m.codex.characterUpdated)
       onOpenChange(false)
     },
     onError: (error) => {
-      toast.error(`Failed to update character: ${error.message}`)
+      toast.error(fill(m.codex.characterUpdateFailed, { message: error.message }))
     },
   })
 
@@ -116,12 +118,12 @@ export function CharacterDialog({
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Create New Character" : `Edit ${character?.name}`}
+            {mode === "create"
+              ? m.codex.createCharacter
+              : fill(m.codex.editNamed, { name: character?.name ?? "" })}
           </DialogTitle>
           <DialogDescription>
-            {mode === "create"
-              ? "Add a new character to your project's codex."
-              : "Update the character's information."}
+            {mode === "create" ? m.codex.addCharacterHint : m.codex.updateCharacterHint}
           </DialogDescription>
         </DialogHeader>
 
@@ -132,9 +134,9 @@ export function CharacterDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name *</FormLabel>
+                  <FormLabel>{m.codex.nameLabel}</FormLabel>
                   <FormControl>
-                    <Input {...field} name="character_name" placeholder="Character name" />
+                    <Input {...field} name="character_name" placeholder={m.codex.characterName} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -146,11 +148,11 @@ export function CharacterDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{m.projects.description}</FormLabel>
                   <FormControl>
                     <Textarea
                       className="min-h-[80px]"
-                      placeholder="Brief description of the character, including their role in the story"
+                      placeholder={m.codex.characterDescription}
                       {...field}
                     />
                   </FormControl>
@@ -168,14 +170,14 @@ export function CharacterDialog({
                 type="button"
                 variant="outline"
               >
-                Cancel
+                {m.common.cancel}
               </Button>
               <Button disabled={isLoading} type="submit">
                 {(() => {
                   if (isLoading) {
-                    return "Saving..."
+                    return m.codex.saving
                   }
-                  return mode === "create" ? "Create Character" : "Update Character"
+                  return mode === "create" ? m.codex.createCharacterButton : m.codex.updateCharacter
                 })()}
               </Button>
             </DialogFooter>

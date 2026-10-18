@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { AISidebarProvider, useAISidebar } from "@/contexts/ai-sidebar-context"
+import { fill, useLocale } from "@/i18n/locale"
 import { api } from "@/lib/api"
 
 export const Route = createFileRoute("/dashboard/project/$projectId")({
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/dashboard/project/$projectId")({
 })
 
 function ProjectLayout() {
+  const { messages: m } = useLocale()
   const { projectId: id } = Route.useParams()
   const location = useLocation()
   const { isOpen: aiSidebarOpen, toggle: toggleAISidebar } = useAISidebar()
@@ -43,7 +45,7 @@ function ProjectLayout() {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="animate-pulse">Loading project...</div>
+        <div className="animate-pulse">{m.projects.loading}</div>
       </div>
     )
   }
@@ -52,9 +54,9 @@ function ProjectLayout() {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <h2 className="mb-2 font-semibold text-2xl text-gray-900">Project not found</h2>
+          <h2 className="mb-2 font-semibold text-2xl text-gray-900">{m.projects.notFound}</h2>
           <Link to="/dashboard/projects">
-            <Button variant="outline">Back to Projects</Button>
+            <Button variant="outline">{m.projects.back}</Button>
           </Link>
         </div>
       </div>
@@ -71,7 +73,7 @@ function ProjectLayout() {
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to="/dashboard/projects">Projects</Link>
+                  <Link to="/dashboard/projects">{m.nav.projects}</Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
@@ -91,8 +93,16 @@ function ProjectLayout() {
             <div className="flex items-center gap-4">
               <div className="min-w-32">
                 <div className="text-sm opacity-75">
-                  {project.currentWordCount.toLocaleString()} /{" "}
-                  {project.targetWordCount?.toLocaleString() || "∞"} words
+                  {project.targetWordCount
+                    ? fill(m.projects.wordProgress, {
+                        current: project.currentWordCount.toLocaleString(),
+                        target: project.targetWordCount.toLocaleString(),
+                        unit: m.common.words,
+                      })
+                    : fill(m.projects.wordOpen, {
+                        current: project.currentWordCount.toLocaleString(),
+                        unit: m.common.words,
+                      })}
                 </div>
                 {project.targetWordCount ? (
                   <Progress
@@ -111,7 +121,7 @@ function ProjectLayout() {
               {isWritePage && (
                 <Button className="gap-2" onClick={toggleAISidebar} size="sm" variant="outline">
                   <MessageCircle className="h-4 w-4" />
-                  {aiSidebarOpen ? "Hide AI" : "Show AI"}
+                  {aiSidebarOpen ? m.projects.hideAi : m.projects.showAi}
                 </Button>
               )}
             </div>
@@ -127,7 +137,7 @@ function ProjectLayout() {
             to="/projects/$projectId/write"
           >
             <Edit3 className="mr-2 h-4 w-4" />
-            Write
+            {m.sidebar.write}
           </Link>
 
           <Link
@@ -137,7 +147,7 @@ function ProjectLayout() {
             to="/dashboard/project/$projectId/outline"
           >
             <FileText className="mr-2 h-4 w-4" />
-            Outline
+            {m.projects.outline}
           </Link>
 
           <Link
@@ -147,7 +157,7 @@ function ProjectLayout() {
             to="/dashboard/project/$projectId/characters"
           >
             <Users className="mr-2 h-4 w-4" />
-            Characters
+            {m.sidebar.characters}
           </Link>
 
           <Link
@@ -157,7 +167,7 @@ function ProjectLayout() {
             to="/dashboard/project/$projectId/settings"
           >
             <Settings className="mr-2 h-4 w-4" />
-            Settings
+            {m.nav.settings}
           </Link>
         </div>
       </div>

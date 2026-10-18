@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { fill, useLocale } from "@/i18n/locale"
 
 type ConnectionMethod = "ngrok" | "cloudflare" | "manual"
 
@@ -29,6 +30,7 @@ interface OllamaSetupProps {
 }
 
 export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
+  const { messages: m } = useLocale()
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod>("ngrok")
   const [apiUrl, setApiUrl] = useState("")
   const [testingConnection, setTestingConnection] = useState(false)
@@ -37,9 +39,9 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success("Copied to clipboard!")
+      toast.success(m.ollama.copied)
     } catch {
-      toast.error("Could not copy to clipboard.")
+      toast.error(m.ollama.copyFailed)
     }
   }
 
@@ -64,14 +66,18 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
 
       if (response.ok) {
         setConnectionStatus("success")
-        toast.success("Connection successful!")
+        toast.success(m.ollama.connectionOk)
       } else {
         setConnectionStatus("error")
         toast.error(`Connection failed: ${response.status} ${response.statusText}`)
       }
     } catch (error) {
       setConnectionStatus("error")
-      toast.error(`Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      toast.error(
+        fill(m.ollama.connectionFailed, {
+          message: error instanceof Error ? error.message : m.ai.unknownError,
+        })
+      )
     } finally {
       setTestingConnection(false)
     }
@@ -89,61 +95,59 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
     { title: string; description: string; steps: SetupStep[] }
   > = {
     ngrok: {
-      title: "Ngrok Setup (Recommended)",
-      description: "Quick setup with temporary or persistent URLs",
+      title: m.ollama.ngrokTitle,
+      description: m.ollama.ngrokHint,
       steps: [
         {
-          title: "Install ngrok",
-          content: "Download and install ngrok from https://ngrok.com/",
+          title: m.ollama.installNgrok,
+          content: m.ollama.installNgrokBody,
         },
         {
-          title: "Start Ollama",
-          content: "Make sure Ollama is running locally on port 11434",
+          title: m.ollama.startOllama,
+          content: m.ollama.startOllamaBody,
         },
         {
-          title: "Create tunnel",
+          title: m.ollama.createTunnel,
           content: 'ngrok http 11434 --host-header="localhost:11434"',
           copyable: true,
         },
         {
-          title: "Copy URL",
-          content: "Copy the HTTPS forwarding URL (e.g., https://abc123.ngrok.app)",
+          title: m.ollama.copyUrl,
+          content: m.ollama.copyNgrok,
         },
       ],
     },
     cloudflare: {
-      title: "Cloudflare Tunnel Setup",
-      description: "Free persistent tunnels with better integration",
+      title: m.ollama.cfTitle,
+      description: m.ollama.cfHint,
       steps: [
         {
-          title: "Install cloudflared",
-          content:
-            "Download from https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/",
+          title: m.ollama.installCf,
+          content: m.ollama.installCfBody,
         },
         {
-          title: "Start Ollama",
-          content: "Make sure Ollama is running locally on port 11434",
+          title: m.ollama.startOllama,
+          content: m.ollama.startOllamaBody,
         },
         {
-          title: "Create tunnel",
+          title: m.ollama.createTunnel,
           content:
             'cloudflared tunnel --url http://localhost:11434 --http-host-header="localhost:11434"',
           copyable: true,
         },
         {
-          title: "Copy URL",
-          content: "Copy the HTTPS URL provided by cloudflared",
+          title: m.ollama.copyUrl,
+          content: m.ollama.copyCf,
         },
       ],
     },
     manual: {
-      title: "Manual Configuration",
-      description: "Enter a custom Ollama API URL",
+      title: m.ollama.manualTitle,
+      description: m.ollama.manualHint,
       steps: [
         {
-          title: "Custom Setup",
-          content:
-            "Enter your Ollama API URL directly (e.g., if running on a server or custom configuration)",
+          title: m.ollama.customSetup,
+          content: m.ollama.customSetupBody,
         },
       ],
     },
@@ -155,28 +159,26 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
     <div className="space-y-6">
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="font-medium text-base">Connection Method</Label>
-          <p className="text-muted-foreground text-sm">
-            Choose how to connect to your local Ollama instance
-          </p>
+          <Label className="font-medium text-base">{m.ollama.method}</Label>
+          <p className="text-muted-foreground text-sm">{m.ollama.methodHint}</p>
           <Select
             onValueChange={(value) => setConnectionMethod(value as ConnectionMethod)}
             value={connectionMethod}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select connection method" />
+              <SelectValue placeholder={m.ollama.selectMethod} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ngrok">
                 <div className="flex items-center gap-2">
-                  Ngrok
+                  {m.ollama.ngrok}
                   <Badge className="text-xs" variant="secondary">
-                    Recommended
+                    {m.ai.recommended}
                   </Badge>
                 </div>
               </SelectItem>
-              <SelectItem value="cloudflare">Cloudflare Tunnel</SelectItem>
-              <SelectItem value="manual">Manual Configuration</SelectItem>
+              <SelectItem value="cloudflare">{m.ollama.cloudflare}</SelectItem>
+              <SelectItem value="manual">{m.ollama.manual}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -190,7 +192,7 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
             <CardTitle className="flex items-center gap-2 text-lg">
               {currentGuide.title}
               <Badge className="text-xs" variant="outline">
-                Setup Guide
+                {m.ollama.setupGuide}
               </Badge>
             </CardTitle>
             <p className="text-muted-foreground text-sm">{currentGuide.description}</p>
@@ -230,7 +232,7 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="apiUrl">
-            {connectionMethod === "manual" ? "Ollama API URL" : "Tunnel URL"}
+            {connectionMethod === "manual" ? m.ollama.apiUrl : m.ollama.tunnelUrl}
           </Label>
           <div className="flex gap-2">
             <Input
@@ -252,24 +254,22 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
               type="button"
               variant="outline"
             >
-              {testingConnection ? "Testing..." : "Test"}
+              {testingConnection ? m.ollama.testing : m.ollama.test}
             </Button>
           </div>
           {connectionStatus === "success" && (
             <div className="flex items-center gap-2 text-green-600 text-sm">
               <CheckCircle className="h-4 w-4" />
-              Connection successful
+              {m.ollama.connectionOk}
             </div>
           )}
           {connectionStatus === "error" && (
             <div className="flex items-center gap-2 text-red-600 text-sm">
               <AlertCircle className="h-4 w-4" />
-              Connection failed
+              {m.ollama.failedShort}
             </div>
           )}
-          <p className="text-muted-foreground text-sm">
-            Make sure your tunnel is running and paste the HTTPS URL here
-          </p>
+          <p className="text-muted-foreground text-sm">{m.ollama.tunnelHint}</p>
         </div>
 
         <div className="flex gap-2 pt-4">
@@ -277,15 +277,15 @@ export function OllamaSetup({ onConnect, loading }: OllamaSetupProps) {
             disabled={!apiUrl || loading || connectionStatus === "error"}
             onClick={handleConnect}
           >
-            {loading ? "Connecting..." : "Connect Ollama"}
+            {loading ? m.ai.connectingShort : m.ollama.connect}
           </Button>
           <Button
-            onClick={() => window.open("https://ollama.com/download", "_blank")}
+            onClick={() => window.open("https://ollama.com/download", "_blank", "noopener")}
             type="button"
             variant="outline"
           >
             <ExternalLink className="mr-2 h-4 w-4" />
-            Download Ollama
+            {m.ollama.download}
           </Button>
         </div>
       </div>

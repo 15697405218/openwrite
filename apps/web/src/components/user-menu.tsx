@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "./ui/button"
 import { Skeleton } from "./ui/skeleton"
+import { useLocale } from "@/i18n/locale"
 
 async function fetchSession() {
   const baseUrl =
@@ -48,6 +49,7 @@ export default function UserMenu() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { setTheme, theme } = useTheme()
+  const { messages: m } = useLocale()
 
   const sessionQuery = useQuery({
     queryKey: ["session"],
@@ -76,7 +78,7 @@ export default function UserMenu() {
   if (!sessionQuery.data?.authenticated) {
     return (
       <Button asChild variant="outline">
-        <Link to="/login">Sign In</Link>
+        <Link to="/login">{m.auth.signIn}</Link>
       </Button>
     )
   }
@@ -87,37 +89,37 @@ export default function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button className="w-full" variant="outline">
-          {session.user.name || "User"}
+          {session.user.name || m.common.user}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56 bg-card">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+        <DropdownMenuLabel>{m.dashboard.myAccount}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>{session.user.email}</DropdownMenuItem>
         <DropdownMenuSeparator />
 
         {/* Theme Selection */}
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuLabel>{m.theme.label}</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => setTheme("light")}>
           <Sun className="mr-2 h-4 w-4" />
-          Light
+          {m.theme.light}
           {theme === "light" && <span className="ml-auto">✓</span>}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("dark")}>
           <Moon className="mr-2 h-4 w-4" />
-          Dark
+          {m.theme.dark}
           {theme === "dark" && <span className="ml-auto">✓</span>}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("system")}>
           <Monitor className="mr-2 h-4 w-4" />
-          System
+          {m.theme.system}
           {theme === "system" && <span className="ml-auto">✓</span>}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Button className="w-full" onClick={handleSignOut} variant="destructive">
-            Sign Out
+            {m.dashboard.signOut}
           </Button>
         </DropdownMenuItem>
       </DropdownMenuContent>

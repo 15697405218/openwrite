@@ -76,9 +76,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { fill, useLocale } from "@/i18n/locale"
 import { ApiError, api, type ConnectionType, type GraphNodeType } from "@/lib/api"
 import { computeTreeLayout } from "@/lib/graph-layout"
 
@@ -94,23 +94,25 @@ const EXPANDABLE_SUBTYPES = new Set(["premise", "act", "chapter", "scene"])
 
 // Steps whose targets are absent (e.g. no expand buttons on an empty canvas)
 // are skipped automatically by GuidedTour
-const CANVAS_TOUR_STEPS: TourStep[] = [
-  {
-    target: '[data-tour="premise-card"]',
-    title: "Start with a premise",
-    body: "One sentence is enough — it becomes the root node of your story map, ready to expand.",
-  },
-  {
-    target: '[title="Expand with AI"]',
-    title: "Expand any element",
-    body: "The sparkle button breaks an element into the next level — premise into acts, acts into chapters, chapters into scenes. Add optional guidance to steer it.",
-  },
-  {
-    target: '[data-tour="canvas-elements"]',
-    title: "Add elements by hand",
-    body: "Acts, scenes, beats, characters, locations, and lore — drop them anywhere and connect them by dragging between node handles.",
-  },
-]
+function canvasTourSteps(m: ReturnType<typeof useLocale>["messages"]): TourStep[] {
+  return [
+    {
+      target: '[data-tour="premise-card"]',
+      title: m.tour.premiseTitle,
+      body: m.tour.premiseBody,
+    },
+    {
+      target: '[data-tour="expand-ai"]',
+      title: m.tour.expandTitle,
+      body: m.tour.expandBody,
+    },
+    {
+      target: '[data-tour="canvas-elements"]',
+      title: m.tour.addTitle,
+      body: m.tour.addBody,
+    },
+  ]
+}
 
 // Enhanced story node data interface matching our graph system
 interface StoryNodeData extends Record<string, unknown> {
@@ -191,7 +193,9 @@ function StoryNode(
   }
 ) {
   const { data, selected, id, onEdit, onExpand } = props
+  const { messages: m } = useLocale()
   const config = nodeConfigs[data.elementType]
+  const typeLabel = m.canvas.types[data.elementType] ?? config.label
 
   const isExpandable =
     data.nodeType === "story_element" && EXPANDABLE_SUBTYPES.has(data.subType ?? "")
@@ -227,14 +231,15 @@ function StoryNode(
         <div className="min-w-0 flex-1 truncate font-medium text-sm">{data.label}</div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <Badge className="text-xs" variant="secondary">
-            {config.label}
+            {typeLabel}
           </Badge>
           {isExpandable && (
             <Button
               className="h-6 w-6 p-0 hover:bg-white/20"
+              data-tour="expand-ai"
               onClick={handleExpand}
               size="sm"
-              title="Expand with AI"
+              title={m.canvas.expandWithAi}
               variant="ghost"
             >
               <Sparkles className="h-3 w-3" />
@@ -260,12 +265,12 @@ function StoryNode(
           <div className="space-y-1">
             {data.goals && (
               <div className="text-xs">
-                <span className="font-medium">Goal:</span> {data.goals}
+                <span className="font-medium">{m.canvas.goal}:</span> {data.goals}
               </div>
             )}
             {data.conflict && (
               <div className="text-xs">
-                <span className="font-medium">Conflict:</span> {data.conflict}
+                <span className="font-medium">{m.canvas.conflict}:</span> {data.conflict}
               </div>
             )}
           </div>
@@ -329,6 +334,7 @@ function inferConnectionType(source: GraphNodeType, target: GraphNodeType): Conn
 
 // Main Canvas Component
 function StoryCanvas() {
+  const { messages: m } = useLocale()
   const { projectId } = Route.useParams()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -511,7 +517,7 @@ function StoryCanvas() {
       queryClient.invalidateQueries({ queryKey: ["graph-connections", projectId] })
     },
     onError: () => {
-      toast.error("Failed to delete node. Please try again.")
+      toast.error(m.canvas.deleteFailed)
     },
   })
 
@@ -567,7 +573,7 @@ function StoryCanvas() {
     }) => await api.graph.expandNode(projectId, graphNodeId, { instructions }),
     onMutate: () => {
       expandingRef.current = true
-      expandToastRef.current = toast.loading("Expanding story element…")
+      expandToastRef.current = toast.loading(m.canvas.expanding)
     },
     onSuccess: async (result) => {
       await Promise.all([
@@ -575,22 +581,22 @@ function StoryCanvas() {
         queryClient.invalidateQueries({ queryKey: ["graph-connections", projectId] }),
       ])
       pendingLayoutRef.current = true
-      toast.success(`Added ${result.nodes.length} connected elements`, {
+      toast.success(fill(m.canvas.added, { count: result.nodes.length }), {
         id: expandToastRef.current,
       })
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === "no_provider") {
-        toast.error("Connect an AI provider to expand story elements.", {
+        toast.error(m.canvas.connectProvider, {
           id: expandToastRef.current,
           action: {
-            label: "Set up",
+            label: m.canvas.setup,
             onClick: () => navigate({ to: "/dashboard/ai" }),
           },
         })
         return
       }
-      toast.error(error instanceof Error ? error.message : "Failed to expand this element", {
+      toast.error(error instanceof Error ? error.message : m.canvas.expandFailed, {
         id: expandToastRef.current,
       })
     },
@@ -605,13 +611,16 @@ function StoryCanvas() {
   const [expandTarget, setExpandTarget] = useState<{ id: string; label: string } | null>(null)
   const [expandGuidance, setExpandGuidance] = useState("")
 
-  const handleNodeExpand = useCallback((graphNodeId: string, label: string) => {
-    if (expandingRef.current) {
-      toast.info("An expansion is already running…")
-      return
-    }
-    setExpandTarget({ id: graphNodeId, label })
-  }, [])
+  const handleNodeExpand = useCallback(
+    (graphNodeId: string, label: string) => {
+      if (expandingRef.current) {
+        toast.info(m.canvas.alreadyRunning)
+        return
+      }
+      setExpandTarget({ id: graphNodeId, label })
+    },
+    [m]
+  )
 
   const confirmExpand = useCallback(() => {
     if (!expandTarget) {
@@ -631,23 +640,23 @@ function StoryCanvas() {
       queryClient.invalidateQueries({ queryKey: ["chapters", projectId] })
       queryClient.invalidateQueries({ queryKey: ["graph-nodes", projectId] })
       if (result.alreadyPromoted) {
-        toast.info("This chapter is already in your manuscript.", {
+        toast.info(m.canvas.alreadyInManuscript, {
           action: {
-            label: "Open Write",
+            label: m.canvas.openWrite,
             onClick: () => navigate({ to: "/projects/$projectId/write", params: { projectId } }),
           },
         })
         return
       }
-      toast.success("Chapter added to your manuscript.", {
+      toast.success(m.canvas.chapterAdded, {
         action: {
-          label: "Open Write",
+          label: m.canvas.openWrite,
           onClick: () => navigate({ to: "/projects/$projectId/write", params: { projectId } }),
         },
       })
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to promote this chapter")
+      toast.error(error instanceof Error ? error.message : m.canvas.promoteFailed)
     },
   })
 
@@ -680,13 +689,13 @@ function StoryCanvas() {
       })
       await queryClient.invalidateQueries({ queryKey: ["graph-nodes", projectId] })
       setPremiseText("")
-      toast.success("Premise created — press its ✨ button to expand it into acts.")
+      toast.success(m.canvas.premiseCreated)
     } catch {
-      toast.error("Failed to create the premise. Please try again.")
+      toast.error(m.canvas.premiseFailed)
     } finally {
       setIsCreatingPremise(false)
     }
-  }, [premiseText, projectId, queryClient])
+  }, [premiseText, projectId, queryClient, m])
 
   // Create StoryNode wrapper with edit + expand functionality
   const StoryNodeWithEdit = useCallback(
@@ -810,21 +819,29 @@ function StoryCanvas() {
   }, [])
 
   const getNodeTitle = useCallback(
-    (nodeType: GraphNodeType, config: ReturnType<typeof getNodeConfig>) => {
+    (nodeType: GraphNodeType, subType?: string) => {
       if (nodeType === "character") {
-        return "Select Character"
+        return m.canvas.selectCharacter
       }
-      return `New ${config.label}`
+      const typeKey = subType ?? nodeType
+      const label =
+        typeKey in m.canvas.types
+          ? m.canvas.types[typeKey as keyof typeof m.canvas.types]
+          : m.canvas.types.node
+      return fill(m.canvas.newNamed, { label })
     },
-    []
+    [m]
   )
 
-  const getNodeDescription = useCallback((nodeType: GraphNodeType) => {
-    if (nodeType === "character") {
-      return "Choose an existing character to place in your story"
-    }
-    return ""
-  }, [])
+  const getNodeDescription = useCallback(
+    (nodeType: GraphNodeType) => {
+      if (nodeType === "character") {
+        return m.canvas.selectCharacterHint
+      }
+      return ""
+    },
+    [m]
+  )
 
   const getNodeMetadata = useCallback((nodeType: GraphNodeType) => {
     if (nodeType === "character") {
@@ -880,7 +897,7 @@ function StoryCanvas() {
         const result = await api.graph.createNode(projectId, {
           nodeType,
           subType,
-          title: getNodeTitle(nodeType, config),
+          title: getNodeTitle(nodeType, subType),
           description: getNodeDescription(nodeType),
           positionX: position.x,
           positionY: position.y,
@@ -971,7 +988,7 @@ function StoryCanvas() {
       queryClient.invalidateQueries({ queryKey: ["graph-nodes", projectId] })
     },
     onError: () => {
-      toast.error("Failed to save changes")
+      toast.error(m.canvas.saveFailed)
     },
   })
 
@@ -1012,91 +1029,91 @@ function StoryCanvas() {
       {/* Menubar */}
       <Menubar className="rounded-none border-b">
         <MenubarMenu>
-          <MenubarTrigger data-tour="canvas-elements">Elements</MenubarTrigger>
+          <MenubarTrigger data-tour="canvas-elements">{m.canvas.elements}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={() => createGraphNode("story_element", "act")}>
               <Layers className="mr-2 h-4 w-4" />
-              New Act <MenubarShortcut>⌘1</MenubarShortcut>
+              {m.canvas.newAct} <MenubarShortcut>⌘1</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => createGraphNode("story_element", "chapter")}>
               <Square className="mr-2 h-4 w-4" />
-              New Chapter <MenubarShortcut>⌘2</MenubarShortcut>
+              {m.canvas.newChapter} <MenubarShortcut>⌘2</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => createGraphNode("story_element", "scene")}>
               <Circle className="mr-2 h-4 w-4" />
-              New Scene <MenubarShortcut>⌘3</MenubarShortcut>
+              {m.canvas.newScene} <MenubarShortcut>⌘3</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => createGraphNode("story_element", "beat")}>
               <Triangle className="mr-2 h-4 w-4" />
-              New Beat <MenubarShortcut>⌘4</MenubarShortcut>
+              {m.canvas.newBeat} <MenubarShortcut>⌘4</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={() => createGraphNode("story_element", "plot-point")}>
               <Target className="mr-2 h-4 w-4" />
-              New Plot Point <MenubarShortcut>⌘P</MenubarShortcut>
+              {m.canvas.newPlotPoint} <MenubarShortcut>⌘P</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={() => createGraphNode("character")}>
               <Circle className="mr-2 h-4 w-4" />
-              New Character <MenubarShortcut>⌘C</MenubarShortcut>
+              {m.canvas.newCharacter} <MenubarShortcut>⌘C</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => createGraphNode("location")}>
               <Square className="mr-2 h-4 w-4" />
-              New Location <MenubarShortcut>⌘L</MenubarShortcut>
+              {m.canvas.newLocation} <MenubarShortcut>⌘L</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => createGraphNode("lore")}>
               <FileText className="mr-2 h-4 w-4" />
-              New Lore <MenubarShortcut>⌘R</MenubarShortcut>
+              {m.canvas.newLore} <MenubarShortcut>⌘R</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => createGraphNode("plot_thread")}>
               <Target className="mr-2 h-4 w-4" />
-              New Plot Thread <MenubarShortcut>⌘T</MenubarShortcut>
+              {m.canvas.newPlotThread} <MenubarShortcut>⌘T</MenubarShortcut>
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>View</MenubarTrigger>
+          <MenubarTrigger>{m.canvas.view}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={() => zoomIn()}>
               <ZoomIn className="mr-2 h-4 w-4" />
-              Zoom In <MenubarShortcut>⌘+</MenubarShortcut>
+              {m.canvas.zoomIn} <MenubarShortcut>⌘+</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={() => zoomOut()}>
               <ZoomOut className="mr-2 h-4 w-4" />
-              Zoom Out <MenubarShortcut>⌘-</MenubarShortcut>
+              {m.canvas.zoomOut} <MenubarShortcut>⌘-</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={() => fitView()}>
               <FileText className="mr-2 h-4 w-4" />
-              Fit View <MenubarShortcut>⌘0</MenubarShortcut>
+              {m.canvas.fit} <MenubarShortcut>⌘0</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={applyAutoLayout}>
               <Network className="mr-2 h-4 w-4" />
-              Auto-layout
+              {m.canvas.autoLayout}
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={tour.start}>
               <Sparkles className="mr-2 h-4 w-4" />
-              Show guide
+              {m.canvas.showGuide}
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>Edit</MenubarTrigger>
+          <MenubarTrigger>{m.canvas.edit}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem disabled>
               <Undo2 className="mr-2 h-4 w-4" />
-              Undo <MenubarShortcut>⌘Z</MenubarShortcut>
+              {m.canvas.undo} <MenubarShortcut>⌘Z</MenubarShortcut>
             </MenubarItem>
             <MenubarItem disabled>
               <Redo2 className="mr-2 h-4 w-4" />
-              Redo <MenubarShortcut>⌘⇧Z</MenubarShortcut>
+              {m.canvas.redo} <MenubarShortcut>⌘⇧Z</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem disabled={!selectedNode} onClick={deleteSelectedNode}>
-              Delete Selected <MenubarShortcut>⌫</MenubarShortcut>
+              {m.canvas.deleteSelected} <MenubarShortcut>⌫</MenubarShortcut>
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
@@ -1144,17 +1161,15 @@ function StoryCanvas() {
                   <div className="rounded-lg bg-indigo-500 p-2 text-white">
                     <Sparkles className="h-4 w-4" />
                   </div>
-                  <h2 className="font-semibold text-lg">Start your story map</h2>
+                  <h2 className="font-semibold text-lg">{m.canvas.startTitle}</h2>
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Describe your story in a sentence or two. Then expand it — premise into acts, acts
-                  into chapters, chapters into scenes — each level graphically connected to the
-                  last.
+                  {m.canvas.startBody}
                 </p>
                 <Textarea
                   className="min-h-[80px] resize-none"
                   onChange={(e) => setPremiseText(e.target.value)}
-                  placeholder="A lighthouse keeper discovers the ships she guides ashore arrive from a century in the past…"
+                  placeholder={m.canvas.premisePlaceholder}
                   rows={3}
                   value={premiseText}
                 />
@@ -1169,7 +1184,7 @@ function StoryCanvas() {
                   ) : (
                     <Sparkles className="mr-2 h-4 w-4" />
                   )}
-                  Create premise
+                  {m.canvas.createPremise}
                 </Button>
               </div>
             </Panel>
@@ -1181,9 +1196,11 @@ function StoryCanvas() {
             position="top-right"
           >
             <div className="space-y-1 text-muted-foreground">
-              <div>Elements: {nodes.length}</div>
-              <div>Connections: {edges.length}</div>
-              <div>Selected: {selectedNode?.data.label || "None"}</div>
+              <div>{fill(m.canvas.elementCount, { count: nodes.length })}</div>
+              <div>{fill(m.canvas.connectionCount, { count: edges.length })}</div>
+              <div>
+                {fill(m.canvas.selected, { label: selectedNode?.data.label || m.common.none })}
+              </div>
             </div>
           </Panel>
         </ReactFlow>
@@ -1193,7 +1210,7 @@ function StoryCanvas() {
       <GuidedTour
         onFinish={tour.finish}
         open={tour.open && !nodesLoading}
-        steps={CANVAS_TOUR_STEPS}
+        steps={canvasTourSteps(m)}
       />
 
       {/* Expansion guidance dialog */}
@@ -1209,15 +1226,14 @@ function StoryCanvas() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
-              Expand “{expandTarget?.label}”
+              {fill(m.canvas.expandTitle, { label: expandTarget?.label ?? "" })}
             </DialogTitle>
-            <DialogDescription>
-              AI breaks this element into the next level of your story, connected on the canvas.
-            </DialogDescription>
+            <DialogDescription>{m.canvas.expandBody}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label className="font-medium text-sm" htmlFor="expand-guidance">
-              Guidance <span className="font-normal text-muted-foreground">(optional)</span>
+              {m.canvas.guidance}{" "}
+              <span className="font-normal text-muted-foreground">({m.common.optional})</span>
             </Label>
             <Textarea
               className="min-h-[72px] resize-none"
@@ -1229,18 +1245,16 @@ function StoryCanvas() {
                   confirmExpand()
                 }
               }}
-              placeholder="Steer the expansion — e.g. “darker tone, five chapters, end on a betrayal”"
+              placeholder={m.canvas.guidancePlaceholder}
               rows={3}
               value={expandGuidance}
             />
-            <p className="text-muted-foreground text-xs">
-              Press Enter to expand, Shift+Enter for a new line.
-            </p>
+            <p className="text-muted-foreground text-xs">{m.canvas.expandHint}</p>
           </div>
           <DialogFooter>
             <Button onClick={confirmExpand} type="button">
               <Sparkles className="mr-2 h-4 w-4" />
-              Expand
+              {m.canvas.expand}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1256,10 +1270,14 @@ function StoryCanvas() {
                   <div className={`rounded-lg p-2 text-white ${selectedNode.data.color}`}>
                     {nodeConfigs[selectedNode.data.elementType].icon}
                   </div>
-                  Edit {nodeConfigs[selectedNode.data.elementType].label}
+                  {fill(m.canvas.editElement, {
+                    label:
+                      m.canvas.types[selectedNode.data.elementType] ??
+                      nodeConfigs[selectedNode.data.elementType].label,
+                  })}
                 </SheetTitle>
                 <SheetDescription className="text-base">
-                  Configure the details for this story element
+                  {m.canvas.configureDetails}
                 </SheetDescription>
               </SheetHeader>
 
@@ -1271,25 +1289,25 @@ function StoryCanvas() {
                     }`}
                   >
                     <TabsTrigger className="text-sm" value="overview">
-                      Overview
+                      {m.canvas.overview}
                     </TabsTrigger>
                     <TabsTrigger className="text-sm" value="story">
-                      Story
+                      {m.canvas.story}
                     </TabsTrigger>
                     {selectedNode.data.nodeType === "story_element" && (
                       <TabsTrigger className="text-sm" value="writing">
-                        Writing
+                        {m.canvas.writing}
                       </TabsTrigger>
                     )}
                     <TabsTrigger className="text-sm" value="connections">
-                      Links
+                      {m.canvas.links}
                     </TabsTrigger>
                   </TabsList>
 
                   <TabsContent className="space-y-5 px-1" value="overview">
                     {selectedNode.data.nodeType === "character" && (
                       <div className="space-y-2">
-                        <Label className="font-medium text-sm">Linked Character</Label>
+                        <Label className="font-medium text-sm">{m.canvas.linkedCharacter}</Label>
                         <Select
                           onValueChange={(characterId) => {
                             const character = characters.find((c) => c.id === characterId)
@@ -1309,7 +1327,7 @@ function StoryCanvas() {
                           value={selectedNode.data.linkedCharacterId ?? ""}
                         >
                           <SelectTrigger className="h-11">
-                            <SelectValue placeholder="Choose a character" />
+                            <SelectValue placeholder={m.canvas.chooseCharacter} />
                           </SelectTrigger>
                           <SelectContent>
                             {characters.map((character) => (
@@ -1320,16 +1338,14 @@ function StoryCanvas() {
                           </SelectContent>
                         </Select>
                         {characters.length === 0 && (
-                          <p className="text-muted-foreground text-xs">
-                            No characters yet — add some in the Codex first.
-                          </p>
+                          <p className="text-muted-foreground text-xs">{m.canvas.noCharacters}</p>
                         )}
                       </div>
                     )}
 
                     <div className="space-y-2">
                       <Label className="font-medium text-sm" htmlFor="title">
-                        Title
+                        {m.canvas.elementTitle}
                       </Label>
                       <Input
                         className="h-11"
@@ -1342,14 +1358,14 @@ function StoryCanvas() {
 
                     <div className="space-y-2">
                       <Label className="font-medium text-sm" htmlFor="description">
-                        Description
+                        {m.projects.description}
                       </Label>
                       <Textarea
                         className="min-h-[90px] resize-none"
                         id="description"
                         onBlur={persistSelectedNode}
                         onChange={(e) => updateSelectedNode({ description: e.target.value })}
-                        placeholder="Describe this story element..."
+                        placeholder={m.canvas.describe}
                         rows={3}
                         value={selectedNode.data.description}
                       />
@@ -1357,7 +1373,7 @@ function StoryCanvas() {
 
                     <div className="space-y-2">
                       <Label className="font-medium text-sm" htmlFor="color">
-                        Color Theme
+                        {m.canvas.colorTheme}
                       </Label>
                       <Select
                         onValueChange={(color) => {
@@ -1370,13 +1386,13 @@ function StoryCanvas() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="bg-blue-500">💙 Blue</SelectItem>
-                          <SelectItem value="bg-green-500">💚 Green</SelectItem>
-                          <SelectItem value="bg-yellow-500">💛 Yellow</SelectItem>
-                          <SelectItem value="bg-purple-500">💜 Purple</SelectItem>
-                          <SelectItem value="bg-red-500">❤️ Red</SelectItem>
-                          <SelectItem value="bg-pink-500">💖 Pink</SelectItem>
-                          <SelectItem value="bg-indigo-500">💙 Indigo</SelectItem>
+                          <SelectItem value="bg-blue-500">💙 {m.canvas.colors.blue}</SelectItem>
+                          <SelectItem value="bg-green-500">💚 {m.canvas.colors.green}</SelectItem>
+                          <SelectItem value="bg-yellow-500">💛 {m.canvas.colors.yellow}</SelectItem>
+                          <SelectItem value="bg-purple-500">💜 {m.canvas.colors.purple}</SelectItem>
+                          <SelectItem value="bg-red-500">❤️ {m.canvas.colors.red}</SelectItem>
+                          <SelectItem value="bg-pink-500">💖 {m.canvas.colors.pink}</SelectItem>
+                          <SelectItem value="bg-indigo-500">💙 {m.canvas.colors.indigo}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1385,14 +1401,14 @@ function StoryCanvas() {
                   <TabsContent className="space-y-5 px-1" value="story">
                     <div className="space-y-2">
                       <Label className="font-medium text-sm" htmlFor="goals">
-                        Goals
+                        {m.canvas.goal}
                       </Label>
                       <Textarea
                         className="min-h-[80px] resize-none"
                         id="goals"
                         onBlur={persistSelectedNode}
                         onChange={(e) => updateSelectedNode({ goals: e.target.value })}
-                        placeholder="What does the character want to achieve in this part?"
+                        placeholder={m.canvas.goalPlaceholder}
                         rows={3}
                         value={selectedNode.data.goals}
                       />
@@ -1400,14 +1416,14 @@ function StoryCanvas() {
 
                     <div className="space-y-2">
                       <Label className="font-medium text-sm" htmlFor="conflict">
-                        Conflict
+                        {m.canvas.conflict}
                       </Label>
                       <Textarea
                         className="min-h-[80px] resize-none"
                         id="conflict"
                         onBlur={persistSelectedNode}
                         onChange={(e) => updateSelectedNode({ conflict: e.target.value })}
-                        placeholder="What obstacles, challenges, or tensions arise?"
+                        placeholder={m.canvas.conflictPlaceholder}
                         rows={3}
                         value={selectedNode.data.conflict}
                       />
@@ -1415,14 +1431,14 @@ function StoryCanvas() {
 
                     <div className="space-y-2">
                       <Label className="font-medium text-sm" htmlFor="notes">
-                        Notes & Ideas
+                        {m.sidebar.notes}
                       </Label>
                       <Textarea
                         className="min-h-[100px] resize-none"
                         id="notes"
                         onBlur={persistSelectedNode}
                         onChange={(e) => updateSelectedNode({ notes: e.target.value })}
-                        placeholder="Additional notes, inspiration, and creative ideas..."
+                        placeholder={m.canvas.notesPlaceholder}
                         rows={4}
                         value={selectedNode.data.notes}
                       />
@@ -1440,7 +1456,7 @@ function StoryCanvas() {
 
                   <TabsContent className="space-y-5 px-1" value="connections">
                     <div className="space-y-2">
-                      <Label className="font-medium text-sm">Connected Elements</Label>
+                      <Label className="font-medium text-sm">{m.canvas.connected}</Label>
                       {graphConnections.filter(
                         (conn) =>
                           conn.sourceNodeId === selectedNode.data.graphNodeId ||
@@ -1470,7 +1486,7 @@ function StoryCanvas() {
                                   <div className="min-w-0">
                                     <div className="truncate font-medium text-sm">
                                       {isOutgoing ? "→ " : "← "}
-                                      {other?.title ?? "Unknown node"}
+                                      {other?.title ?? m.canvas.unknownNode}
                                     </div>
                                     <div className="text-muted-foreground text-xs">
                                       {other?.nodeType.replace("_", " ")}
@@ -1487,7 +1503,7 @@ function StoryCanvas() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="font-medium text-sm">Story Flow</Label>
+                      <Label className="font-medium text-sm">{m.canvas.storyFlow}</Label>
                       <div className="rounded-lg border bg-background p-3">
                         <div className="flex items-center gap-3">
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-sm">
@@ -1502,11 +1518,11 @@ function StoryCanvas() {
                               {edges.filter(
                                 (e) => e.source === selectedNode.id || e.target === selectedNode.id
                               ).length === 1
-                                ? "Connection"
-                                : "Connections"}
+                                ? m.canvas.connection
+                                : m.canvas.connections}
                             </div>
                             <div className="text-muted-foreground text-xs">
-                              Links to other story elements
+                              {m.canvas.linksHint}
                             </div>
                           </div>
                         </div>
@@ -1521,10 +1537,8 @@ function StoryCanvas() {
                   <div className="border-t px-2 pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-medium text-sm">Manuscript</h4>
-                        <p className="mt-1 text-muted-foreground text-xs">
-                          Send this chapter to the Write editor
-                        </p>
+                        <h4 className="font-medium text-sm">{m.canvas.manuscript}</h4>
+                        <p className="mt-1 text-muted-foreground text-xs">{m.canvas.sendToWrite}</p>
                       </div>
                       <Button
                         disabled={promoteNodeMutation.isPending}
@@ -1534,7 +1548,7 @@ function StoryCanvas() {
                         variant="outline"
                       >
                         <BookPlus className="mr-2 h-4 w-4" />
-                        Promote to manuscript
+                        {m.canvas.promote}
                       </Button>
                     </div>
                   </div>
@@ -1543,20 +1557,18 @@ function StoryCanvas() {
               <div className="border-t px-2 pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium text-sm">Danger Zone</h4>
-                    <p className="mt-1 text-muted-foreground text-xs">
-                      This action cannot be undone
-                    </p>
+                    <h4 className="font-medium text-sm">{m.canvas.danger}</h4>
+                    <p className="mt-1 text-muted-foreground text-xs">{m.canvas.cannotUndo}</p>
                   </div>
                   <ConfirmDialog
-                    confirmText="Delete"
-                    description={`Are you sure you want to delete "${selectedNode.data.label}"? This will permanently remove the story element and all its connections. This action cannot be undone.`}
+                    confirmText={m.common.delete}
+                    description={fill(m.canvas.deleteBody, { label: selectedNode.data.label })}
                     onConfirm={deleteSelectedNode}
-                    title="Delete Story Element"
+                    title={m.canvas.deleteElement}
                     variant="destructive"
                   >
                     <Button size="sm" variant="destructive">
-                      Delete Element
+                      {m.common.delete}
                     </Button>
                   </ConfirmDialog>
                 </div>

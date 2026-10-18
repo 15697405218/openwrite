@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sidebar"
 import UserMenu from "@/components/user-menu"
 import { api } from "@/lib/api"
+import { useLocale } from "@/i18n/locale"
 
 interface ProjectSidebarProps {
   projectId: string
@@ -49,6 +50,7 @@ function CollapsibleSection({
   onOpenModal,
   secondaryField,
 }: CollapsibleSectionProps) {
+  const { messages: m } = useLocale()
   return (
     <SidebarMenuItem>
       <Collapsible onOpenChange={onToggle} open={isExpanded}>
@@ -75,7 +77,7 @@ function CollapsibleSection({
               variant="ghost"
             >
               <Plus className="h-4 w-4" />
-              <span>New</span>
+              <span>{m.common.new}</span>
             </Button>
             {items.map((item) => (
               <Button
@@ -99,6 +101,7 @@ function CollapsibleSection({
 }
 
 export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
+  const { messages: m } = useLocale()
   const [isCodexModalOpen, setIsCodexModalOpen] = useState(false)
   const [codexModalConfig, setCodexModalConfig] = useState<{
     initialType?: string | null
@@ -168,14 +171,14 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
 
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Structure</SidebarGroupLabel>
+            <SidebarGroupLabel>{m.sidebar.structure}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <Link params={{ projectId }} to="/projects/$projectId/write">
                       <PenTool />
-                      <span>Write</span>
+                      <span>{m.sidebar.write}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -183,7 +186,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                   <SidebarMenuButton asChild>
                     <Link params={{ projectId }} to="/projects/$projectId/canvas">
                       <FileText />
-                      <span>Canvas</span>
+                      <span>{m.sidebar.canvas}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -192,7 +195,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
           </SidebarGroup>
 
           <SidebarGroup>
-            <SidebarGroupLabel>Codex</SidebarGroupLabel>
+            <SidebarGroupLabel>{m.sidebar.codex}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {/* Characters */}
@@ -222,7 +225,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                   onToggle={() => toggleCodexSection("lore")}
                   secondaryField="type"
                   sectionKey="lore"
-                  title="Lore"
+                  title={m.sidebar.lore}
                 />
 
                 {/* Plot Threads */}
@@ -234,7 +237,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                   onToggle={() => toggleCodexSection("plot")}
                   secondaryField="role"
                   sectionKey="plot"
-                  title="Plot Threads"
+                  title={m.sidebar.plot}
                 />
 
                 {/* Notes */}
@@ -246,7 +249,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                   onToggle={() => toggleCodexSection("notes")}
                   secondaryField="role"
                   sectionKey="notes"
-                  title="Notes & Ideas"
+                  title={m.sidebar.notes}
                 />
               </SidebarMenu>
             </SidebarGroupContent>

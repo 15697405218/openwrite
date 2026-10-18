@@ -10,6 +10,7 @@ import { ModeToggle } from "./mode-toggle"
 import { Button } from "./ui/button"
 import { Logo } from "./ui/logo"
 import UserMenu from "./user-menu"
+import { useLocale } from "@/i18n/locale"
 
 export default function AppHeader() {
   const location = useRouterState({
@@ -18,10 +19,11 @@ export default function AppHeader() {
 
   const isIndexPage = location === "/"
   const isAuthPage = location === "/login" || location === "/register"
+  const { messages: m } = useLocale()
 
   const navigationItems = [
-    { to: "/", label: "Home" },
-    { to: "/dashboard", label: "Dashboard" },
+    { to: "/", label: m.common.home },
+    { to: "/dashboard", label: m.nav.dashboard },
   ].filter((item) => !isIndexPage || (item.to !== "/" && item.to !== "/dashboard"))
 
   return (
@@ -59,7 +61,7 @@ export default function AppHeader() {
               <ModeToggle />
               {!isAuthPage && (
                 <Button asChild size="sm">
-                  <Link to="/login">Sign In</Link>
+                  <Link to="/login">{m.auth.signIn}</Link>
                 </Button>
               )}
             </div>

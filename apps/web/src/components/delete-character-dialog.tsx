@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { fill, useLocale } from "@/i18n/locale"
 import { api, type Character } from "@/lib/api"
 
 interface DeleteCharacterDialogProps {
@@ -25,17 +26,18 @@ export function DeleteCharacterDialog({
   projectId,
   character,
 }: DeleteCharacterDialogProps) {
+  const { messages: m } = useLocale()
   const queryClient = useQueryClient()
 
   const deleteCharacterMutation = useMutation({
     mutationFn: () => api.characters.delete(projectId, character.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
-      toast.success(`Character "${character.name}" deleted successfully!`)
+      toast.success(fill(m.codex.characterDeleted, { name: character.name }))
       onOpenChange(false)
     },
     onError: (error) => {
-      toast.error(`Failed to delete character: ${error.message}`)
+      toast.error(fill(m.codex.characterDeleteFailed, { message: error.message }))
     },
   })
 
@@ -47,20 +49,21 @@ export function DeleteCharacterDialog({
     <AlertDialog onOpenChange={onOpenChange} open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Character</AlertDialogTitle>
+          <AlertDialogTitle>{m.codex.deleteCharacterTitle}</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete <strong>{character.name}</strong>? This action cannot be
-            undone.
+            {fill(m.codex.deleteCharacterBody, { name: character.name })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleteCharacterMutation.isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={deleteCharacterMutation.isPending}>
+            {m.common.cancel}
+          </AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteCharacterMutation.isPending}
             onClick={handleDelete}
           >
-            {deleteCharacterMutation.isPending ? "Deleting..." : "Delete Character"}
+            {deleteCharacterMutation.isPending ? m.codex.deleting : m.codex.deleteCharacterButton}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

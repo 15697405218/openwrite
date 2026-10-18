@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/context-menu"
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { api, type Character } from "@/lib/api"
+import { useLocale } from "@/i18n/locale"
 
 interface CharacterSidebarSectionProps {
   isExpanded: boolean
@@ -29,6 +30,7 @@ export function CharacterSidebarSection({
   onToggle,
   onOpenCodexModal,
 }: CharacterSidebarSectionProps) {
+  const { messages: m } = useLocale()
   const [characterDialogOpen, setCharacterDialogOpen] = useState(false)
   const [characterDialogMode, setCharacterDialogMode] = useState<"create" | "edit">("create")
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null)
@@ -72,7 +74,7 @@ export function CharacterSidebarSection({
                 <ChevronRight className="h-4 w-4" />
               )}
               <Users className="h-4 w-4" />
-              <span>Characters</span>
+              <span>{m.sidebar.characters}</span>
               <Badge className="ml-auto" variant="secondary">
                 {characters.length}
               </Badge>
@@ -87,7 +89,7 @@ export function CharacterSidebarSection({
                 variant="ghost"
               >
                 <Plus className="h-4 w-4" />
-                <span>New</span>
+                <span>{m.common.new}</span>
               </Button>
               {characters.map((character) => (
                 <ContextMenu key={character.id}>
@@ -105,11 +107,11 @@ export function CharacterSidebarSection({
                   <ContextMenuContent>
                     <ContextMenuItem onClick={() => onOpenCodexModal("characters", character.name)}>
                       <FileText className="mr-2 h-4 w-4" />
-                      View Details
+                      {m.sidebar.viewDetails}
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => handleEditCharacter(character)}>
                       <Edit className="mr-2 h-4 w-4" />
-                      Edit Character
+                      {m.sidebar.editCharacter}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
@@ -117,7 +119,7 @@ export function CharacterSidebarSection({
                       onClick={() => handleDeleteCharacter(character)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Delete Character
+                      {m.sidebar.deleteCharacter}
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>

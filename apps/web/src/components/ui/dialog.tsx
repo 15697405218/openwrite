@@ -2,6 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 import type * as React from "react"
 
+import { useLocale } from "@/i18n/locale"
 import { cn } from "@/lib/utils"
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -44,6 +45,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const { messages: m } = useLocale()
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -62,7 +64,7 @@ function DialogContent({
             data-slot="dialog-close"
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{m.common.close}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>

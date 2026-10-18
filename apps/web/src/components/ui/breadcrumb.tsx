@@ -2,6 +2,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { ChevronRight, MoreHorizontal } from "lucide-react"
 import type * as React from "react"
 
+import { useLocale } from "@/i18n/locale"
 import { cn } from "@/lib/utils"
 
 const Breadcrumb = ({
@@ -9,7 +10,10 @@ const Breadcrumb = ({
   ...props
 }: (React.ComponentPropsWithoutRef<"nav"> & {
   separator?: React.ComponentType<{ className?: string }>
-}) & { ref?: React.Ref<HTMLElement> }) => <nav aria-label="breadcrumb" ref={ref} {...props} />
+}) & { ref?: React.Ref<HTMLElement> }) => {
+  const { messages: m } = useLocale()
+  return <nav aria-label={m.common.breadcrumb} ref={ref} {...props} />
+}
 Breadcrumb.displayName = "Breadcrumb"
 
 const BreadcrumbList = ({
@@ -87,17 +91,20 @@ const BreadcrumbSeparator = ({ children, className, ...props }: React.ComponentP
 )
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator"
 
-const BreadcrumbEllipsis = ({ className, ...props }: React.ComponentProps<"span">) => (
-  <span
-    aria-hidden="true"
-    className={cn("flex h-9 w-9 items-center justify-center", className)}
-    role="presentation"
-    {...props}
-  >
-    <MoreHorizontal className="h-4 w-4" />
-    <span className="sr-only">More</span>
-  </span>
-)
+const BreadcrumbEllipsis = ({ className, ...props }: React.ComponentProps<"span">) => {
+  const { messages: m } = useLocale()
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("flex h-9 w-9 items-center justify-center", className)}
+      role="presentation"
+      {...props}
+    >
+      <MoreHorizontal className="h-4 w-4" />
+      <span className="sr-only">{m.common.more}</span>
+    </span>
+  )
+}
 BreadcrumbEllipsis.displayName = "BreadcrumbEllipsis"
 
 export {

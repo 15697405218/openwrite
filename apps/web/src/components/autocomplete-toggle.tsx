@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useLocale } from "@/i18n/locale"
 import { type AiProvider, aiProvidersApi } from "@/lib/api/ai-providers"
 
 interface Model {
@@ -34,6 +35,7 @@ export function AutocompleteToggle({
   selectedModel,
   onModelChange,
 }: AutocompleteToggleProps) {
+  const { messages: m } = useLocale()
   const [autocompleteEnabled, setAutocompleteEnabled] = useState(isEnabled)
 
   // Fetch AI providers
@@ -68,16 +70,14 @@ export function AutocompleteToggle({
     onModelChange?.(modelId, provider)
   }
 
-  const currentModel = availableModels.find((m: Model) => m.id === selectedModel)
+  const currentModel = availableModels.find((model) => model.id === selectedModel)
 
   // Helper functions to avoid nested ternaries
   const getTooltipMessage = () => {
     if (!hasActiveProviders) {
-      return "Connect an AI provider to enable autocomplete"
+      return m.ai.connectForAutocomplete
     }
-    return autocompleteEnabled
-      ? "Disable AI autocomplete suggestions"
-      : "Enable AI autocomplete suggestions"
+    return autocompleteEnabled ? m.ai.disableAutocomplete : m.ai.enableAutocomplete
   }
 
   const renderButtonContent = () => {
@@ -89,16 +89,16 @@ export function AutocompleteToggle({
         </>
       )
     }
-    return "Select model"
+    return m.ai.selectModel
   }
 
   const renderDropdownContent = () => {
     if (isLoading) {
-      return <DropdownMenuItem disabled>Loading models...</DropdownMenuItem>
+      return <DropdownMenuItem disabled>{m.ai.loadingModels}</DropdownMenuItem>
     }
 
     if (availableModels.length === 0) {
-      return <DropdownMenuItem disabled>No models available</DropdownMenuItem>
+      return <DropdownMenuItem disabled>{m.ai.noModels}</DropdownMenuItem>
     }
 
     return renderModelsByProvider()
@@ -143,7 +143,7 @@ export function AutocompleteToggle({
       {/* Autocomplete Toggle */}
       <div className="flex flex-row items-center gap-2">
         <Sparkles className="h-4 w-4 text-muted-foreground" />
-        <span className="text-muted-foreground text-sm">Autocomplete</span>
+        <span className="text-muted-foreground text-sm">{m.ai.autocomplete}</span>
         <Tooltip>
           <TooltipTrigger asChild>
             <Switch
@@ -171,7 +171,7 @@ export function AutocompleteToggle({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>Select AI Model</DropdownMenuLabel>
+            <DropdownMenuLabel>{m.ai.selectModelMenu}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {renderDropdownContent()}
           </DropdownMenuContent>

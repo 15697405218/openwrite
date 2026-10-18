@@ -16,6 +16,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import UserMenu from "@/components/user-menu"
+import { useLocale } from "@/i18n/locale"
 import { authClient } from "@/lib/auth-client"
 
 export const Route = createFileRoute("/dashboard")({
@@ -43,6 +44,8 @@ export const Route = createFileRoute("/dashboard")({
 })
 
 function DashboardLayout() {
+  const { messages: m } = useLocale()
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
@@ -56,14 +59,14 @@ function DashboardLayout() {
 
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Writing</SidebarGroupLabel>
+              <SidebarGroupLabel>{m.nav.writing}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <Link to="/dashboard/projects">
                         <BookOpen />
-                        <span>My Projects</span>
+                        <span>{m.nav.myProjects}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -72,14 +75,14 @@ function DashboardLayout() {
             </SidebarGroup>
 
             <SidebarGroup>
-              <SidebarGroupLabel>Organization</SidebarGroupLabel>
+              <SidebarGroupLabel>{m.nav.organization}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <Link to="/dashboard/team">
                         <Users />
-                        <span>Team</span>
+                        <span>{m.nav.team}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -87,7 +90,7 @@ function DashboardLayout() {
                     <SidebarMenuButton asChild>
                       <Link to="/dashboard/settings">
                         <Settings />
-                        <span>Settings</span>
+                        <span>{m.nav.settings}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -96,14 +99,14 @@ function DashboardLayout() {
             </SidebarGroup>
 
             <SidebarGroup>
-              <SidebarGroupLabel>AI & Tools</SidebarGroupLabel>
+              <SidebarGroupLabel>{m.nav.aiTools}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <Link to="/dashboard/ai">
                         <Brain />
-                        <span>AI Models</span>
+                        <span>{m.nav.aiModels}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

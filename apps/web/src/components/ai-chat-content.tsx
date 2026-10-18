@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { useLocale } from "@/i18n/locale"
 import { ApiError, aiApi } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -25,16 +26,8 @@ interface AIChatContentProps {
 // Cap the history sent to the model to keep requests small
 const MAX_HISTORY_MESSAGES = 12
 
-const PROMPT_SUGGESTIONS = [
-  "Help me develop this character",
-  "Suggest plot twists for this scene",
-  "Improve the pacing here",
-  "Make this dialogue more realistic",
-  "Add more sensory details",
-  "What's missing from this scene?",
-]
-
 export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
+  const { messages: m } = useLocale()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [needsProvider, setNeedsProvider] = useState(false)
@@ -76,7 +69,7 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         setNeedsProvider(true)
         return
       }
-      setErrorText(error instanceof Error ? error.message : "Something went wrong")
+      setErrorText(error instanceof Error ? error.message : m.ai.somethingWrong)
     },
   })
 
@@ -117,13 +110,10 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         <div className="mb-3 w-fit rounded-full bg-muted p-3">
           <Settings className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="mb-2 font-semibold text-sm">Connect an AI provider</h3>
-        <p className="mb-4 text-muted-foreground text-sm">
-          The writing assistant uses your own AI provider account (OpenRouter, OpenAI, Anthropic,
-          Ollama, and more). Connect one to start chatting.
-        </p>
+        <h3 className="mb-2 font-semibold text-sm">{m.ai.connectTitle}</h3>
+        <p className="mb-4 text-muted-foreground text-sm">{m.ai.connectBody}</p>
         <Button asChild size="sm">
-          <Link to="/dashboard/ai">Set up AI provider</Link>
+          <Link to="/dashboard/ai">{m.ai.setupProvider}</Link>
         </Button>
       </div>
     )
@@ -139,16 +129,13 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
               <div className="mx-auto mb-3 w-fit rounded-full bg-muted p-3">
                 <Bot className="h-6 w-6 text-muted-foreground" />
               </div>
-              <p className="mb-4 text-muted-foreground text-sm">
-                Hi! I'm here to help with your writing. Ask me anything about characters, plot,
-                style, or storytelling.
-              </p>
+              <p className="mb-4 text-muted-foreground text-sm">{m.ai.assistantHello}</p>
               <div className="space-y-2">
                 <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                  Try asking:
+                  {m.ai.tryAsking}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {PROMPT_SUGGESTIONS.map((suggestion) => (
+                  {m.ai.suggestions.map((suggestion) => (
                     <Badge
                       className="cursor-pointer py-1 text-xs hover:bg-secondary/80"
                       key={suggestion}
@@ -247,7 +234,7 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
             className="flex-1"
             disabled={isTyping}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about your writing..."
+            placeholder={m.ai.ask}
             ref={inputRef}
             value={input}
           />

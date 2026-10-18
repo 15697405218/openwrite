@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 import z from "zod"
+import { fill, useLocale } from "@/i18n/locale"
 import { authClient } from "@/lib/auth-client"
 import Loader from "./loader"
 import { Button } from "./ui/button"
@@ -15,6 +16,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
   })
   const queryClient = useQueryClient()
   const { isPending } = authClient.useSession()
+  const { messages: m } = useLocale()
 
   const form = useForm({
     defaultValues: {
@@ -49,7 +51,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
             (result && typeof result === "object" && !("error" in result)))
 
         if (isSuccess) {
-          toast.success("Sign in successful")
+          toast.success(m.auth.signInSuccess)
 
           // Function to fetch fresh session data
           const fetchSessionData = async () => {
@@ -96,22 +98,22 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
                 to: "/dashboard",
               })
             } else {
-              toast.error("Sign in successful but session not established. Please try again.")
+              toast.error(m.auth.sessionMissing)
             }
           } catch {
-            toast.error("Sign in failed. Please try again.")
+            toast.error(fill(m.auth.tryAgain, { action: m.auth.actionSignIn }))
           }
         } else {
-          toast.error("Sign in failed - invalid credentials")
+          toast.error(m.auth.invalidCredentials)
         }
       } catch {
-        toast.error("Sign in failed")
+        toast.error(fill(m.auth.failed, { action: m.auth.actionSignIn }))
       }
     },
     validators: {
       onSubmit: z.object({
-        email: z.email("Invalid email address"),
-        password: z.string().min(8, "Password must be at least 8 characters"),
+        email: z.email(m.auth.invalidEmail),
+        password: z.string().min(8, m.auth.passwordMin),
       }),
     },
   })
@@ -122,7 +124,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
 
   return (
     <div className="mx-auto mt-10 w-full max-w-md p-6">
-      <h1 className="mb-6 text-center font-bold text-3xl">Welcome Back</h1>
+      <h1 className="mb-6 text-center font-bold text-3xl">{m.auth.welcomeBack}</h1>
 
       <form
         className="space-y-4"
@@ -136,7 +138,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
           <form.Field name="email">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Email</Label>
+                <Label htmlFor={field.name}>{m.auth.email}</Label>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -159,7 +161,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
           <form.Field name="password">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Password</Label>
+                <Label htmlFor={field.name}>{m.auth.password}</Label>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -185,7 +187,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
               disabled={!state.canSubmit || state.isSubmitting}
               type="submit"
             >
-              {state.isSubmitting ? "Submitting..." : "Sign In"}
+              {state.isSubmitting ? m.auth.processing : m.auth.signIn}
             </Button>
           )}
         </form.Subscribe>
@@ -197,7 +199,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
           onClick={onSwitchToSignUp}
           variant="link"
         >
-          Need an account? Sign Up
+          {m.auth.needAccount}
         </Button>
       </div>
     </div>

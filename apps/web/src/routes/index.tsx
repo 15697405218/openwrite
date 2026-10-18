@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { GithubIcon } from "@/components/ui/github-icon"
 import { Separator } from "@/components/ui/separator"
+import { useLocale } from "@/i18n/locale"
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
@@ -124,6 +125,7 @@ async function fetchSession() {
 
 function HomeComponent() {
   const navigate = Route.useNavigate()
+  const { messages: m } = useLocale()
 
   const sessionQuery = useQuery({
     queryKey: ["session"],
@@ -153,16 +155,13 @@ function HomeComponent() {
         <div className="mb-6 text-sm">
           <TypewriterText text={TITLE_TEXT} />
         </div>
-        <p className="mx-auto mb-6 max-w-2xl text-lg text-muted-foreground">
-          A modern, AI-powered writing platform built with the latest web technologies. Create,
-          edit, and collaborate with intelligent assistance.
-        </p>
+        <p className="mx-auto mb-6 max-w-2xl text-lg text-muted-foreground">{m.home.tagline}</p>
         <div className="mb-6 flex justify-center gap-4">
           <Button asChild size="lg">
-            <Link to="/register">Get Started</Link>
+            <Link to="/register">{m.home.getStarted}</Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <Link to="/login">Sign In</Link>
+            <Link to="/login">{m.home.signIn}</Link>
           </Button>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
@@ -171,7 +170,7 @@ function HomeComponent() {
           <Badge variant="secondary">Hono</Badge>
           <Badge variant="secondary">TanStack</Badge>
           <Badge variant="secondary">Cloudflare</Badge>
-          <Badge variant="secondary">AI-Powered</Badge>
+          <Badge variant="secondary">{m.home.aiPowered}</Badge>
         </div>
       </div>
 
@@ -181,42 +180,31 @@ function HomeComponent() {
       <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>✍️ Rich Text Editor</CardTitle>
-            <CardDescription>
-              Powered by Tiptap with markdown support and AI assistance
-            </CardDescription>
+            <CardTitle>{m.home.editorTitle}</CardTitle>
+            <CardDescription>{m.home.editorDesc}</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Write with a beautiful, extensible editor that supports real-time collaboration and
-              intelligent suggestions.
-            </p>
+            <p className="text-muted-foreground text-sm">{m.home.editorBody}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🚀 Modern Stack</CardTitle>
-            <CardDescription>
-              Built with React 19, TypeScript, and Cloudflare Workers
-            </CardDescription>
+            <CardTitle>{m.home.stackTitle}</CardTitle>
+            <CardDescription>{m.home.stackDesc}</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Lightning-fast performance with edge computing and type-safe development experience.
-            </p>
+            <p className="text-muted-foreground text-sm">{m.home.stackBody}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>🔐 Secure Auth</CardTitle>
-            <CardDescription>Better Auth integration with session management</CardDescription>
+            <CardTitle>{m.home.authTitle}</CardTitle>
+            <CardDescription>{m.home.authDesc}</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Secure authentication with email/password and modern session handling.
-            </p>
+            <p className="text-muted-foreground text-sm">{m.home.authBody}</p>
           </CardContent>
         </Card>
       </div>
@@ -227,19 +215,16 @@ function HomeComponent() {
       <div className="mb-8 text-center">
         <div className="mb-4 flex items-center justify-center gap-2">
           <Heart className="h-6 w-6 text-red-500" />
-          <h2 className="font-bold text-2xl">100% Open Source</h2>
+          <h2 className="font-bold text-2xl">{m.home.openSource}</h2>
           <Heart className="h-6 w-6 text-red-500" />
         </div>
-        <p className="mx-auto mb-6 max-w-2xl text-muted-foreground">
-          OpenWrite is completely open source and built in the open. Contribute, learn, and help
-          make writing better for everyone.
-        </p>
+        <p className="mx-auto mb-6 max-w-2xl text-muted-foreground">{m.home.openSourceBody}</p>
 
         <div className="mb-6 flex flex-wrap justify-center gap-4">
           <Button asChild className="gap-2" variant="outline">
             <a href="https://github.com/ilrein/openwrite" rel="noopener noreferrer" target="_blank">
               <GithubIcon className="h-4 w-4" />
-              View Source
+              {m.home.viewSource}
             </a>
           </Button>
           <Button asChild className="gap-2" variant="outline">
@@ -249,7 +234,7 @@ function HomeComponent() {
               target="_blank"
             >
               <Star className="h-4 w-4" />
-              Star on GitHub
+              {m.home.star}
             </a>
           </Button>
           <Button asChild className="gap-2" variant="outline">
@@ -259,7 +244,7 @@ function HomeComponent() {
               target="_blank"
             >
               <GitFork className="h-4 w-4" />
-              Fork Project
+              {m.home.fork}
             </a>
           </Button>
         </div>
@@ -268,30 +253,24 @@ function HomeComponent() {
           <Card>
             <CardContent className="flex flex-col items-center p-6">
               <Code2 className="mb-3 h-8 w-8 text-primary" />
-              <h3 className="mb-2 font-semibold">AGPL-3.0 Licensed</h3>
-              <p className="text-center text-muted-foreground text-sm">
-                Strong copyleft license ensuring freedom and transparency
-              </p>
+              <h3 className="mb-2 font-semibold">{m.home.license}</h3>
+              <p className="text-center text-muted-foreground text-sm">{m.home.licenseBody}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="flex flex-col items-center p-6">
               <Users className="mb-3 h-8 w-8 text-primary" />
-              <h3 className="mb-2 font-semibold">Community Driven</h3>
-              <p className="text-center text-muted-foreground text-sm">
-                Built by developers, for developers and writers
-              </p>
+              <h3 className="mb-2 font-semibold">{m.home.community}</h3>
+              <p className="text-center text-muted-foreground text-sm">{m.home.communityBody}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="flex flex-col items-center p-6">
               <GithubIcon className="mb-3 h-8 w-8 text-primary" />
-              <h3 className="mb-2 font-semibold">Always Transparent</h3>
-              <p className="text-center text-muted-foreground text-sm">
-                All development happens in the open on GitHub
-              </p>
+              <h3 className="mb-2 font-semibold">{m.home.transparent}</h3>
+              <p className="text-center text-muted-foreground text-sm">{m.home.transparentBody}</p>
             </CardContent>
           </Card>
         </div>
@@ -302,7 +281,7 @@ function HomeComponent() {
       {/* System Status */}
       <Card className="mx-auto max-w-md">
         <CardHeader>
-          <CardTitle>System Status</CardTitle>
+          <CardTitle>{m.home.status}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
@@ -310,11 +289,11 @@ function HomeComponent() {
               className={`h-2 w-2 rounded-full ${healthCheck.data ? "bg-green-500" : "bg-red-500"}`}
             />
             <span className="text-sm">
-              API: {(() => {
+              {m.home.api}: {(() => {
                 if (healthCheck.isLoading) {
-                  return "Checking..."
+                  return m.home.checking
                 }
-                return healthCheck.data ? "Connected" : "Disconnected"
+                return healthCheck.data ? m.home.connected : m.home.disconnected
               })()}
             </span>
           </div>

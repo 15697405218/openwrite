@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { fill, useLocale } from "@/i18n/locale"
 import { ApiError, api, type TextBlock } from "@/lib/api"
 
 interface NodeWritingPanelProps {
@@ -27,19 +28,20 @@ function TextBlockEditor({
   onChanged: () => void
   projectId: string
 }) {
+  const { messages: m } = useLocale()
   const [value, setValue] = useState(block.content ?? "")
 
   const updateMutation = useMutation({
     mutationFn: async (content: string) =>
       await api.graph.updateTextBlock(projectId, nodeId, block.id, { content }),
     onSuccess: onChanged,
-    onError: () => toast.error("Failed to save text block"),
+    onError: () => toast.error(m.writing.textSaved),
   })
 
   const deleteMutation = useMutation({
     mutationFn: async () => await api.graph.deleteTextBlock(projectId, nodeId, block.id),
     onSuccess: onChanged,
-    onError: () => toast.error("Failed to delete text block"),
+    onError: () => toast.error(m.writing.textDeleted),
   })
 
   return (
@@ -49,7 +51,7 @@ function TextBlockEditor({
           <Badge variant="outline">Block {index + 1}</Badge>
           <span className="text-muted-foreground text-xs">{block.wordCount || 0} words</span>
           {updateMutation.isPending && (
-            <span className="text-muted-foreground text-xs">Saving…</span>
+            <span className="text-muted-foreground text-xs">{m.common.saving}</span>
           )}
         </div>
         <Button
@@ -78,6 +80,7 @@ function TextBlockEditor({
 }
 
 export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
+  const { messages: m } = useLocale()
   const queryClient = useQueryClient()
   const [newBlockContent, setNewBlockContent] = useState("")
   const [instructions, setInstructions] = useState("")
@@ -104,7 +107,7 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
       setNewBlockContent("")
       refresh()
     },
-    onError: () => toast.error("Failed to add text block"),
+    onError: () => toast.error(m.writing.textAdded),
   })
 
   const generateMutation = useMutation({
@@ -113,7 +116,9 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
         instructions: instructions.trim() || undefined,
       }),
     onSuccess: (result) => {
-      toast.success(`Draft generated (${result.wordCount} words, via ${result.provider})`)
+      toast.success(
+        fill(m.writing.draftGenerated, { count: result.wordCount, provider: result.provider })
+      )
       setInstructions("")
       refresh()
     },
@@ -122,7 +127,7 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
         setNeedsProvider(true)
         return
       }
-      toast.error(error instanceof Error ? error.message : "Generation failed")
+      toast.error(error instanceof Error ? error.message : m.writing.generationFailed)
     },
   })
 
@@ -132,17 +137,14 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
       <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-medium text-sm">Generate a draft</span>
+          <span className="font-medium text-sm">{m.writing.generateDraft}</span>
         </div>
-        <p className="text-muted-foreground text-xs">
-          Uses this element's connected characters, settings, lore, plot threads, and preceding
-          story elements as context, plus any existing text below.
-        </p>
+        <p className="text-muted-foreground text-xs">{m.writing.generateHint}</p>
         {needsProvider ? (
           <div className="space-y-2 text-sm">
-            <p>No AI provider connected yet.</p>
+            <p>{m.ai.noProviderYet}</p>
             <Button asChild size="sm" variant="outline">
-              <Link to="/dashboard/ai">Set up AI provider</Link>
+              <Link to="/dashboard/ai">{m.ai.setupProvider}</Link>
             </Button>
           </div>
         ) : (
@@ -150,7 +152,7 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
             <Textarea
               className="min-h-[60px]"
               onChange={(e) => setInstructions(e.target.value)}
-              placeholder="Optional instructions, e.g. 'tense pacing, end on a reveal'"
+              placeholder={m.writing.draftPlaceholder}
               value={instructions}
             />
             <Button
@@ -162,11 +164,11 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
             >
               {generateMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Writing draft…
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {m.writing.writingDraft}
                 </>
               ) : (
                 <>
-                  <Sparkles className="mr-2 h-4 w-4" /> Generate draft
+                  <Sparkles className="mr-2 h-4 w-4" /> {m.writing.generateButton}
                 </>
               )}
             </Button>
@@ -175,7 +177,11 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
       </div>
 
       {/* Existing text blocks */}
-      {isLoading && <div className="py-4 text-center text-muted-foreground text-sm">Loading…</div>}
+      {isLoading && (
+        <div className="py-4 text-center text-muted-foreground text-sm">
+          {m.common.loadingShort}
+        </div>
+      )}
       {!isLoading && textBlocks.length === 0 && (
         <div className="rounded-lg border-2 border-dashed py-6 text-center text-muted-foreground text-sm">
           No writing yet. Generate a draft above or add a block below.
@@ -201,7 +207,7 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
           className="min-h-[80px]"
           id="new-text-block"
           onChange={(e) => setNewBlockContent(e.target.value)}
-          placeholder="Write content for this story element..."
+          placeholder={m.writing.blockPlaceholder}
           value={newBlockContent}
         />
         <Button
@@ -212,7 +218,7 @@ export function NodeWritingPanel({ projectId, nodeId }: NodeWritingPanelProps) {
           type="button"
           variant="outline"
         >
-          {createMutation.isPending ? "Adding…" : "Add block"}
+          {createMutation.isPending ? m.writing.adding : m.writing.addBlock}
         </Button>
       </div>
     </div>

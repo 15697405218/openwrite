@@ -2,6 +2,7 @@ import { Download } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { fill, useLocale } from "@/i18n/locale"
 import { api } from "@/lib/api"
 import { buildManuscriptMarkdown, manuscriptFilename } from "@/lib/export-markdown"
 
@@ -23,6 +24,7 @@ interface ExportButtonProps {
 }
 
 export function ExportButton({ projectId, projectTitle }: ExportButtonProps) {
+  const { messages: m } = useLocale()
   const [exporting, setExporting] = useState(false)
 
   const handleExport = async () => {
@@ -30,7 +32,7 @@ export function ExportButton({ projectId, projectTitle }: ExportButtonProps) {
     try {
       const chapters = await api.chapters.list(projectId)
       if (chapters.length === 0) {
-        toast.error("There's nothing to export yet.")
+        toast.error(m.editor.nothingToExport)
         return
       }
 
@@ -45,9 +47,13 @@ export function ExportButton({ projectId, projectTitle }: ExportButtonProps) {
         manuscriptFilename(projectTitle),
         buildManuscriptMarkdown(projectTitle, withContent)
       )
-      toast.success("Manuscript exported as Markdown")
+      toast.success(m.editor.exported)
     } catch (error) {
-      toast.error(`Export failed: ${error instanceof Error ? error.message : "unknown error"}`)
+      toast.error(
+        fill(m.editor.exportFailed, {
+          message: error instanceof Error ? error.message : m.editor.unknownError,
+        })
+      )
     } finally {
       setExporting(false)
     }
@@ -63,7 +69,7 @@ export function ExportButton({ projectId, projectTitle }: ExportButtonProps) {
       variant="outline"
     >
       <Download className="h-4 w-4" />
-      {exporting ? "Exporting…" : "Export"}
+      {exporting ? m.editor.exporting : m.editor.export}
     </Button>
   )
 }

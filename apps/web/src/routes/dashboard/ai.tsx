@@ -37,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { fill, useLocale } from "@/i18n/locale"
 import { aiProvidersApi, type ProviderId } from "@/lib/api/ai-providers"
 import { buildAuthURL, generatePKCEParams } from "@/lib/pkce"
 
@@ -72,6 +73,7 @@ interface ProviderFormProps {
 }
 
 function AIProvidersPage() {
+  const { messages: m } = useLocale()
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [_oauthProcessing, setOauthProcessing] = useState(false)
   const queryClient = useQueryClient()
@@ -85,17 +87,17 @@ function AIProvidersPage() {
   })
 
   if (error) {
-    toast.error(`Failed to load AI providers: ${error.message}`)
+    toast.error(fill(m.ai.loadFailed, { message: error.message }))
   }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => aiProvidersApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-providers"] })
-      toast.success("Provider disconnected successfully")
+      toast.success(m.ai.disconnected)
     },
     onError: (deleteError: Error) => {
-      toast.error(`Failed to disconnect provider: ${deleteError.message}`)
+      toast.error(fill(m.ai.disconnectFailed, { message: deleteError.message }))
     },
   })
 
@@ -108,13 +110,13 @@ function AIProvidersPage() {
     }) => aiProvidersApi.exchangeOAuth(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-providers"] })
-      toast.success("Provider connected successfully via OAuth", {
+      toast.success(m.ai.oauthSuccess, {
         icon: successIcon,
       })
       setOauthProcessing(false)
     },
     onError: (oauthError: Error) => {
-      toast.error(`OAuth connection failed: ${oauthError.message}`)
+      toast.error(fill(m.ai.oauthFailed, { message: oauthError.message }))
       setOauthProcessing(false)
     },
   })
@@ -138,7 +140,7 @@ function AIProvidersPage() {
         }
 
         if (!(storedParams && pkceKey)) {
-          toast.error("No PKCE parameters found in session storage")
+          toast.error(m.ai.noPkce)
           setOauthProcessing(false)
           return
         }
@@ -162,12 +164,14 @@ function AIProvidersPage() {
         })
       } catch (callbackError) {
         toast.error(
-          `OAuth callback failed: ${callbackError instanceof Error ? callbackError.message : "Unknown error"}`
+          fill(m.ai.oauthCallbackFailed, {
+            message: callbackError instanceof Error ? callbackError.message : m.ai.unknownError,
+          })
         )
         setOauthProcessing(false)
       }
     },
-    [oauthMutation]
+    [oauthMutation, m]
   )
 
   useEffect(() => {
@@ -188,7 +192,7 @@ function AIProvidersPage() {
     {
       id: "openrouter",
       name: "OpenRouter",
-      description: "Access 200+ models through one API",
+      description: m.ai.descriptions.openrouter,
       recommended: true,
       enabled: true,
       supportsPKCE: true,
@@ -196,49 +200,49 @@ function AIProvidersPage() {
     {
       id: "openai",
       name: "OpenAI",
-      description: "GPT models",
+      description: m.ai.descriptions.openai,
       enabled: true,
       supportsPKCE: false,
     },
     {
       id: "anthropic",
       name: "Anthropic",
-      description: "Claude models",
+      description: m.ai.descriptions.anthropic,
       enabled: true,
       supportsPKCE: false,
     },
     {
       id: "groq",
       name: "Groq",
-      description: "Fast inference for open-weight models",
+      description: m.ai.descriptions.groq,
       enabled: true,
       supportsPKCE: false,
     },
     {
       id: "gemini",
       name: "Google Gemini",
-      description: "Gemini models",
+      description: m.ai.descriptions.gemini,
       enabled: true,
       supportsPKCE: false,
     },
     {
       id: "cohere",
       name: "Cohere",
-      description: "Command models",
+      description: m.ai.descriptions.cohere,
       enabled: true,
       supportsPKCE: false,
     },
     {
       id: "ollama",
       name: "Ollama",
-      description: "Run models locally on your device",
+      description: m.ai.descriptions.ollama,
       enabled: true,
       supportsPKCE: false,
     },
     {
       id: "custom",
-      name: "Custom (OpenAI-compatible)",
-      description: "Any OpenAI-compatible endpoint — LM Studio, vLLM, DeepSeek, a gateway",
+      name: m.ai.names.custom,
+      description: m.ai.descriptions.custom,
       enabled: true,
       supportsPKCE: false,
     },
@@ -258,23 +262,21 @@ function AIProvidersPage() {
   return (
     <div className="container mx-auto space-y-6 p-6">
       <div className="space-y-2">
-        <h1 className="font-bold text-2xl sm:text-3xl">AI Providers</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Connect your AI providers to start generating content
-        </p>
+        <h1 className="font-bold text-2xl sm:text-3xl">{m.ai.title}</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">{m.ai.subtitle}</p>
       </div>
 
       {providers && providers.length > 0 && (
         <div className="space-y-4">
-          <h2 className="font-semibold text-lg sm:text-xl">Connected Providers</h2>
+          <h2 className="font-semibold text-lg sm:text-xl">{m.ai.connected}</h2>
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-32">Provider</TableHead>
-                  <TableHead className="min-w-48">Description</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-16 text-right">Actions</TableHead>
+                  <TableHead className="min-w-32">{m.ai.provider}</TableHead>
+                  <TableHead className="min-w-48">{m.ai.description}</TableHead>
+                  <TableHead className="w-24">{m.ai.status}</TableHead>
+                  <TableHead className="w-16 text-right">{m.ai.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -289,25 +291,25 @@ function AIProvidersPage() {
                           </span>
                           {providerData?.recommended && (
                             <Badge className="text-xs" variant="secondary">
-                              Recommended
+                              {m.ai.recommended}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {providerData?.description || "AI Provider"}
+                        {providerData?.description || m.ai.fallback}
                       </TableCell>
                       <TableCell>
                         <Badge className="text-xs" variant="default">
-                          Connected
+                          {m.ai.connectedBadge}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <ConfirmDialog
-                          confirmText="Delete"
-                          description="Are you sure you want to delete this AI provider? This action cannot be undone."
+                          confirmText={m.common.delete}
+                          description={m.ai.deleteBody}
                           onConfirm={() => deleteMutation.mutate(provider.id)}
-                          title="Delete AI Provider"
+                          title={m.ai.deleteTitle}
                           variant="destructive"
                         >
                           <Button className="h-6 px-2 text-xs" variant="destructive">
@@ -326,15 +328,15 @@ function AIProvidersPage() {
 
       {availableProviders.some((p) => p.enabled) && (
         <div className="space-y-4">
-          <h2 className="font-semibold text-lg sm:text-xl">Available Providers</h2>
+          <h2 className="font-semibold text-lg sm:text-xl">{m.ai.available}</h2>
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-32">Provider</TableHead>
-                  <TableHead className="min-w-48">Description</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-16 text-right">Actions</TableHead>
+                  <TableHead className="min-w-32">{m.ai.provider}</TableHead>
+                  <TableHead className="min-w-48">{m.ai.description}</TableHead>
+                  <TableHead className="w-24">{m.ai.status}</TableHead>
+                  <TableHead className="w-16 text-right">{m.ai.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,7 +361,7 @@ function AIProvidersPage() {
                           <span className="font-medium">{provider.name}</span>
                           {provider.recommended && (
                             <Badge className="text-xs" variant="secondary">
-                              Recommended
+                              {m.ai.recommended}
                             </Badge>
                           )}
                         </div>
@@ -369,7 +371,7 @@ function AIProvidersPage() {
                       </TableCell>
                       <TableCell>
                         <Badge className="text-xs" variant="outline">
-                          Available
+                          {m.ai.availableBadge}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -422,6 +424,7 @@ function useOAuthLogin(options: {
   providerId: string
   setOauthLoading: (loading: boolean) => void
 }) {
+  const { messages: m } = useLocale()
   const { providerId, setOauthLoading } = options
 
   return async () => {
@@ -448,7 +451,7 @@ function useOAuthLogin(options: {
 
       window.location.href = authUrl
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to initiate OAuth"
+      const errorMessage = error instanceof Error ? error.message : m.ai.oauthInitiateFailed
       toast.error(errorMessage)
       setOauthLoading(false)
     }
@@ -481,6 +484,7 @@ function useProviderSubmit(options: {
     setApiKey,
     availableProviders,
   } = options
+  const { messages: m } = useLocale()
   return async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -500,15 +504,15 @@ function useProviderSubmit(options: {
       })
       // Get provider name for the toast
       const providerData = availableProviders.find((p) => p.id === selectedProvider)
-      const providerName = providerData?.name || "AI Provider"
-      toast.success(`${providerName} connected successfully`, {
+      const providerName = providerData?.name || m.ai.fallback
+      toast.success(fill(m.ai.connectedNamed, { name: providerName }), {
         icon: successIcon,
       })
       onSuccess()
       setSelectedProvider("")
       setApiKey("")
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to connect provider"
+      const errorMessage = error instanceof Error ? error.message : m.ai.connectFailed
       toast.error(errorMessage)
     } finally {
       setLoading(false)
@@ -525,6 +529,7 @@ function AddProviderForm({
   preSelectedProviderId?: string | null
   onSuccess: () => void
 }) {
+  const { messages: m } = useLocale()
   const [selectedProvider, setSelectedProvider] = useState(preSelectedProviderId || "")
   const [apiKey, setApiKey] = useState("")
   const [baseUrl, setBaseUrl] = useState("")
@@ -558,7 +563,7 @@ function AddProviderForm({
           ...(model.trim() ? { defaultModel: model.trim() } : {}),
         },
       })
-      toast.success("Ollama connected successfully", {
+      toast.success(m.ai.ollamaConnected, {
         icon: successIcon,
       })
       onSuccess()
@@ -566,7 +571,9 @@ function AddProviderForm({
       setApiKey("")
     } catch (error) {
       toast.error(
-        `Failed to connect Ollama: ${error instanceof Error ? error.message : "Unknown error"}`
+        fill(m.ai.ollamaConnectFailed, {
+          message: error instanceof Error ? error.message : m.ai.unknownError,
+        })
       )
     } finally {
       setLoading(false)
@@ -626,12 +633,13 @@ function ProviderSelector({
   availableProviders: AIProvider[]
   selectedProviderData: AIProvider | undefined
 }) {
+  const { messages: m } = useLocale()
   return (
     <div className="space-y-2">
-      <Label htmlFor="provider">Select Provider</Label>
+      <Label htmlFor="provider">{m.ai.selectProvider}</Label>
       <Select onValueChange={setSelectedProvider} value={selectedProvider}>
         <SelectTrigger>
-          <SelectValue placeholder="Choose an AI provider" />
+          <SelectValue placeholder={m.ai.chooseProvider} />
         </SelectTrigger>
         <SelectContent>
           {availableProviders.map((provider) => (
@@ -640,7 +648,7 @@ function ProviderSelector({
                 {provider.name}
                 {provider.recommended && (
                   <Badge className="text-xs" variant="secondary">
-                    Recommended
+                    {m.ai.recommended}
                   </Badge>
                 )}
               </div>
@@ -656,14 +664,17 @@ function ProviderSelector({
 }
 
 function ProviderInfo({ selectedProviderData }: { selectedProviderData: AIProvider }) {
+  const { messages: m } = useLocale()
   return (
     <div className="space-y-2">
-      <Label>Connecting to Provider</Label>
+      <Label>{m.ai.connecting}</Label>
       <div className="flex items-center gap-3 rounded-md border p-3">
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="font-medium">{selectedProviderData.name}</span>
-            {selectedProviderData.recommended && <Badge variant="secondary">Recommended</Badge>}
+            {selectedProviderData.recommended && (
+              <Badge variant="secondary">{m.ai.recommended}</Badge>
+            )}
           </div>
           <p className="text-muted-foreground text-sm">{selectedProviderData.description}</p>
         </div>
@@ -683,6 +694,7 @@ function OAuthSection({
   setShowManualApiKey: (show: boolean) => void
   handleOAuthLogin: () => void
 }) {
+  const { messages: m } = useLocale()
   return (
     <div className="space-y-3">
       <Separator />
@@ -695,7 +707,7 @@ function OAuthSection({
             type="button"
             variant="default"
           >
-            {oauthLoading ? "Connecting..." : "OAuth Login (Recommended)"}
+            {oauthLoading ? m.ai.connectingShort : m.ai.oauthLogin}
           </Button>
           <Button
             className="flex-1"
@@ -703,7 +715,7 @@ function OAuthSection({
             type="button"
             variant="outline"
           >
-            Manual API Key
+            {m.ai.manualKey}
           </Button>
         </div>
       )}
@@ -726,10 +738,14 @@ function ApiKeySection({
   setShowManualApiKey: (show: boolean) => void
   optional?: boolean
 }) {
+  const { messages: m } = useLocale()
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label htmlFor="apiKey">API Key{optional ? " (optional)" : ""}</Label>
+        <Label htmlFor="apiKey">
+          {m.ai.apiKey}
+          {optional ? m.ai.optionalSuffix : ""}
+        </Label>
         {selectedProviderSupportsPKCE && showManualApiKey && (
           <Button
             onClick={() => setShowManualApiKey(false)}
@@ -737,21 +753,19 @@ function ApiKeySection({
             type="button"
             variant="ghost"
           >
-            ← Back to OAuth
+            {m.ai.backToOauth}
           </Button>
         )}
       </div>
       <Input
         id="apiKey"
         onChange={(e) => setApiKey(e.target.value)}
-        placeholder={optional ? "Leave blank if the endpoint needs no key" : "Enter your API key"}
+        placeholder={optional ? m.ai.apiKeyOptionalPlaceholder : m.ai.apiKeyPlaceholder}
         required={!optional}
         type="password"
         value={apiKey}
       />
-      <p className="mt-1 text-muted-foreground text-sm">
-        Your API key will be encrypted and stored securely
-      </p>
+      <p className="mt-1 text-muted-foreground text-sm">{m.ai.apiKeyHint}</p>
     </div>
   )
 }
@@ -775,9 +789,10 @@ function BaseUrlSection({
   baseUrl: string
   setBaseUrl: (url: string) => void
 }) {
+  const { messages: m } = useLocale()
   return (
     <div className="space-y-2">
-      <Label htmlFor="baseUrl">Base URL</Label>
+      <Label htmlFor="baseUrl">{m.ai.baseUrl}</Label>
       <Input
         id="baseUrl"
         onChange={(e) => setBaseUrl(e.target.value)}
@@ -787,15 +802,9 @@ function BaseUrlSection({
         value={baseUrl}
       />
       {isLoopbackUrl(baseUrl) ? (
-        <p className="mt-1 text-amber-600 text-sm dark:text-amber-500">
-          Requests are made by the OpenWrite server, which cannot reach your machine's{" "}
-          <code>localhost</code>. Expose the endpoint with a tunnel (ngrok, cloudflared) and paste
-          that URL instead — unless you are self-hosting the server locally.
-        </p>
+        <p className="mt-1 text-amber-600 text-sm dark:text-amber-500">{m.ai.loopbackWarning}</p>
       ) : (
-        <p className="mt-1 text-muted-foreground text-sm">
-          The OpenAI-compatible base URL. <code>/chat/completions</code> is appended for you.
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">{m.ai.baseUrlHint}</p>
       )}
     </div>
   )
@@ -810,21 +819,23 @@ function ModelSection({
   setModel: (model: string) => void
   required: boolean
 }) {
+  const { messages: m } = useLocale()
   return (
     <div className="space-y-2">
-      <Label htmlFor="model">Model{required ? "" : " (optional)"}</Label>
+      <Label htmlFor="model">
+        {m.ai.model}
+        {required ? "" : m.ai.optionalSuffix}
+      </Label>
       <Input
         id="model"
         onChange={(e) => setModel(e.target.value)}
-        placeholder="e.g. z-ai/glm-5.2:free"
+        placeholder={m.ai.modelPlaceholder}
         required={required}
         type="text"
         value={model}
       />
       <p className="mt-1 text-muted-foreground text-sm">
-        {required
-          ? "The model ID this endpoint serves."
-          : "Leave blank to use the provider's default. On OpenRouter, a :free model costs nothing."}
+        {required ? m.ai.modelHintRequired : m.ai.modelHintOptional}
       </p>
     </div>
   )
@@ -851,6 +862,7 @@ function ProviderForm({
   handleOAuthLogin,
   handleOllamaConnect,
 }: ProviderFormProps) {
+  const { messages: m } = useLocale()
   // Extract button state logic for better readability
   const hasSelectedProvider = !!selectedProvider
   const canUseOAuth = selectedProviderSupportsPKCE && !showManualApiKey
@@ -920,7 +932,7 @@ function ProviderForm({
       {selectedProvider !== "ollama" && (
         <div className="flex gap-2 pt-4">
           <Button disabled={isSubmitDisabled} type="submit">
-            {loading ? "Connecting..." : "Connect Provider"}
+            {loading ? m.ai.connectingShort : m.ai.connectProvider}
           </Button>
         </div>
       )}

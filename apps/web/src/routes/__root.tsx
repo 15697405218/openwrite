@@ -9,6 +9,7 @@ import AppHeader from "@/components/app-header"
 import { CommandPalette } from "@/components/command-palette"
 import Loader from "@/components/loader"
 import { ThemeProvider } from "@/components/theme-provider"
+import { LocaleProvider } from "@/i18n/locale"
 import { Toaster } from "@/components/ui/sonner"
 import "../index.css"
 
@@ -54,6 +55,7 @@ function RootComponent() {
   return (
     <>
       <HeadContent />
+      <LocaleProvider>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem storageKey="vite-ui-theme">
         {isDashboard ? (
           // Dashboard and write pages use their own layouts with sidebars
@@ -68,6 +70,7 @@ function RootComponent() {
         <CommandPalette />
         <Toaster />
       </ThemeProvider>
+      </LocaleProvider>
     </>
   )
 }

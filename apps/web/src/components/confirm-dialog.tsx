@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { useLocale } from "@/i18n/locale"
 
 interface ConfirmDialogProps {
   cancelText?: string
@@ -24,14 +25,17 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   title,
   description,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   variant = "default",
   onConfirm,
   children,
   disabled = false,
 }: ConfirmDialogProps) {
+  const { messages: m } = useLocale()
   const [open, setOpen] = useState(false)
+  const confirmLabel = confirmText ?? m.common.confirm
+  const cancelLabel = cancelText ?? m.common.cancel
 
   const handleConfirm = () => {
     onConfirm()
@@ -50,10 +54,10 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogFooter>
           <Button onClick={() => setOpen(false)} variant="outline">
-            {cancelText}
+            {cancelLabel}
           </Button>
           <Button onClick={handleConfirm} variant={variant}>
-            {confirmText}
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

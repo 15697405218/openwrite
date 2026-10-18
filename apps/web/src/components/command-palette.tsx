@@ -19,10 +19,12 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
+import { useLocale } from "@/i18n/locale"
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const { messages: m } = useLocale()
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -43,36 +45,36 @@ export function CommandPalette() {
 
   return (
     <CommandDialog onOpenChange={setOpen} open={open}>
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput placeholder={m.command.placeholder} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{m.command.empty}</CommandEmpty>
 
-        <CommandGroup heading="Navigation">
+        <CommandGroup heading={m.command.navigation}>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: "/dashboard" }))}>
             <HomeIcon />
-            Dashboard
+            {m.nav.dashboard}
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: "/dashboard/projects" }))}>
             <BookOpenIcon />
-            Projects
+            {m.nav.projects}
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: "/dashboard/ai" }))}>
             <PaletteIcon />
-            AI Providers
+            {m.command.aiProviders}
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: "/dashboard/settings" }))}>
             <SettingsIcon />
-            Settings
+            {m.nav.settings}
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: "/dashboard/team" }))}>
             <UsersIcon />
-            Team
+            {m.nav.team}
           </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />
 
-        <CommandGroup heading="Actions">
+        <CommandGroup heading={m.command.actions}>
           <CommandItem
             onSelect={() =>
               runCommand(() => {
@@ -81,7 +83,7 @@ export function CommandPalette() {
             }
           >
             <PlusIcon />
-            Create New Project
+            {m.command.createProject}
           </CommandItem>
           <CommandItem
             onSelect={() =>
@@ -91,20 +93,20 @@ export function CommandPalette() {
             }
           >
             <SearchIcon />
-            Search Projects
+            {m.command.searchProjects}
           </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />
 
-        <CommandGroup heading="Quick Links">
+        <CommandGroup heading={m.command.quickLinks}>
           <CommandItem onSelect={() => runCommand(() => window.open("/privacy", "_blank"))}>
             <FileTextIcon />
-            Privacy Policy
+            {m.command.privacy}
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => window.open("/terms", "_blank"))}>
             <FileTextIcon />
-            Terms of Service
+            {m.command.terms}
           </CommandItem>
         </CommandGroup>
       </CommandList>

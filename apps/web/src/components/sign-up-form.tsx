@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 import z from "zod"
+import { fill, useLocale } from "@/i18n/locale"
 import { authClient } from "@/lib/auth-client"
 import Loader from "./loader"
 import { Button } from "./ui/button"
@@ -15,6 +16,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
   })
   const queryClient = useQueryClient()
   const { isPending } = authClient.useSession()
+  const { messages: m } = useLocale()
 
   const form = useForm({
     defaultValues: {
@@ -39,7 +41,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 
         // Check if sign-up was successful (user object exists)
         if (result && typeof result === "object" && "user" in result && result.user) {
-          toast.success("Sign up successful")
+          toast.success(m.auth.signUpSuccess)
 
           // Function to fetch fresh session data
           const fetchSessionData = async () => {
@@ -84,14 +86,14 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           }
         }
       } catch {
-        toast.error("Sign up failed")
+        toast.error(fill(m.auth.failed, { action: m.auth.actionSignUp }))
       }
     },
     validators: {
       onSubmit: z.object({
-        name: z.string().min(2, "Name must be at least 2 characters"),
-        email: z.email("Invalid email address"),
-        password: z.string().min(8, "Password must be at least 8 characters"),
+        name: z.string().min(2, m.auth.nameMin),
+        email: z.email(m.auth.invalidEmail),
+        password: z.string().min(8, m.auth.passwordMin),
       }),
     },
   })
@@ -102,7 +104,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 
   return (
     <div className="mx-auto mt-10 w-full max-w-md p-6">
-      <h1 className="mb-6 text-center font-bold text-3xl">Create Account</h1>
+      <h1 className="mb-6 text-center font-bold text-3xl">{m.auth.createAccountTitle}</h1>
 
       <form
         className="space-y-4"
@@ -116,7 +118,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           <form.Field name="name">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Name</Label>
+                <Label htmlFor={field.name}>{m.auth.name}</Label>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -138,7 +140,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           <form.Field name="email">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Email</Label>
+                <Label htmlFor={field.name}>{m.auth.email}</Label>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -161,7 +163,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           <form.Field name="password">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Password</Label>
+                <Label htmlFor={field.name}>{m.auth.password}</Label>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -187,7 +189,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
               disabled={!state.canSubmit || state.isSubmitting}
               type="submit"
             >
-              {state.isSubmitting ? "Submitting..." : "Sign Up"}
+              {state.isSubmitting ? m.auth.processing : m.auth.signUp}
             </Button>
           )}
         </form.Subscribe>
@@ -199,7 +201,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           onClick={onSwitchToSignIn}
           variant="link"
         >
-          Already have an account? Sign In
+          {m.auth.hasAccount}
         </Button>
       </div>
     </div>

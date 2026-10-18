@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { api, type Chapter } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { fill, useLocale } from "@/i18n/locale"
 
 interface ChapterListProps {
   chapters: Chapter[]
@@ -23,6 +24,7 @@ export function ChapterList({
   onSelect,
 }: ChapterListProps) {
   const queryClient = useQueryClient()
+  const { messages: m } = useLocale()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
 
@@ -34,20 +36,20 @@ export function ChapterList({
       refresh()
       onSelect(result.id)
     },
-    onError: () => toast.error("Failed to create chapter"),
+    onError: () => toast.error(m.chapters.createFailed),
   })
 
   const renameMutation = useMutation({
     mutationFn: async ({ chapterId, title }: { chapterId: string; title: string }) =>
       await api.chapters.update(projectId, chapterId, { title }),
     onSuccess: refresh,
-    onError: () => toast.error("Failed to rename chapter"),
+    onError: () => toast.error(m.chapters.renameFailed),
   })
 
   const reorderMutation = useMutation({
     mutationFn: async (chapterIds: string[]) => await api.chapters.reorder(projectId, chapterIds),
     onSuccess: refresh,
-    onError: () => toast.error("Failed to reorder chapters"),
+    onError: () => toast.error(m.chapters.reorderFailed),
   })
 
   const deleteMutation = useMutation({
@@ -62,7 +64,7 @@ export function ChapterList({
         }
       }
     },
-    onError: () => toast.error("Failed to delete chapter"),
+    onError: () => toast.error(m.chapters.deleteFailed),
   })
 
   const startRename = (ch: Chapter) => {
@@ -92,13 +94,13 @@ export function ChapterList({
   return (
     <div className="flex h-full w-60 flex-col border-r bg-muted/20" data-tour="chapters">
       <div className="flex items-center justify-between border-b p-3">
-        <span className="font-medium text-sm">Chapters</span>
+        <span className="font-medium text-sm">{m.chapters.title}</span>
         <Button
           className="h-7 w-7 p-0"
           disabled={createMutation.isPending}
           onClick={() => createMutation.mutate()}
           size="sm"
-          title="New chapter"
+          title={m.chapters.new}
           type="button"
           variant="ghost"
         >
@@ -109,7 +111,7 @@ export function ChapterList({
       <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {chapters.length === 0 && (
           <p className="px-2 py-4 text-muted-foreground text-xs">
-            No chapters yet. Create one to start writing.
+            {m.chapters.empty}
           </p>
         )}
 
@@ -146,7 +148,7 @@ export function ChapterList({
                 >
                   <span className="block truncate font-medium text-sm">{ch.title}</span>
                   <span className="block text-muted-foreground text-xs">
-                    {ch.wordCount.toLocaleString()} words
+                    {fill(m.chapters.words, { count: ch.wordCount.toLocaleString() })}
                   </span>
                 </button>
 
@@ -156,7 +158,7 @@ export function ChapterList({
                     disabled={index === 0 || reorderMutation.isPending}
                     onClick={() => move(ch.id, -1)}
                     size="sm"
-                    title="Move up"
+                    title={m.chapters.moveUp}
                     type="button"
                     variant="ghost"
                   >
@@ -167,7 +169,7 @@ export function ChapterList({
                     disabled={index === chapters.length - 1 || reorderMutation.isPending}
                     onClick={() => move(ch.id, 1)}
                     size="sm"
-                    title="Move down"
+                    title={m.chapters.moveDown}
                     type="button"
                     variant="ghost"
                   >
@@ -177,23 +179,23 @@ export function ChapterList({
                     className="h-6 w-6 p-0"
                     onClick={() => startRename(ch)}
                     size="sm"
-                    title="Rename"
+                    title={m.chapters.rename}
                     type="button"
                     variant="ghost"
                   >
                     <Pencil className="h-3 w-3" />
                   </Button>
                   <ConfirmDialog
-                    confirmText="Delete"
-                    description={`Delete "${ch.title}" and its content? This cannot be undone.`}
+                    confirmText={m.common.delete}
+                    description={fill(m.chapters.deleteBody, { title: ch.title })}
                     onConfirm={() => deleteMutation.mutate(ch.id)}
-                    title="Delete chapter"
+                    title={m.chapters.deleteTitle}
                     variant="destructive"
                   >
                     <Button
                       className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                       size="sm"
-                      title="Delete"
+                      title={m.chapters.delete}
                       type="button"
                       variant="ghost"
                     >
@@ -216,7 +218,7 @@ export function ChapterList({
         >
           <Link params={{ projectId }} to="/projects/$projectId/canvas">
             <Network className="mr-2 h-4 w-4" />
-            Map your story
+            {m.chapters.mapStory}
           </Link>
         </Button>
       </div>

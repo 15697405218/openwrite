@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { api, type Project } from "@/lib/api"
+import { useLocale } from "@/i18n/locale"
 
 export const Route = createFileRoute("/dashboard/projects")({
   component: ProjectsPage,
@@ -49,6 +50,7 @@ interface CreateProjectForm {
 function ProjectsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { messages: m } = useLocale()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [createForm, setCreateForm] = useState<CreateProjectForm>({
@@ -97,13 +99,13 @@ function ProjectsPage() {
       navigate({ to: "/projects/$projectId/write", params: { projectId: result.id } })
     },
     onError: (_error) => {
-      toast.error("Failed to create project")
+      toast.error(m.projects.createFailed)
     },
   })
 
   const handleCreateProject = () => {
     if (!createForm.title.trim()) {
-      toast.error("Title is required")
+      toast.error(m.projects.titleRequired)
       return
     }
     createProjectMutation.mutate(createForm)
@@ -115,7 +117,7 @@ function ProjectsPage() {
         <div className="mx-auto max-w-7xl">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="text-lg">Loading...</div>
+              <div className="text-lg">{m.common.loading}</div>
             </div>
           </div>
         </div>
@@ -132,7 +134,7 @@ function ProjectsPage() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>Projects</BreadcrumbPage>
+                <BreadcrumbPage>{m.projects.breadcrumb}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -140,53 +142,51 @@ function ProjectsPage() {
           {/* Title and Action */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-bold text-3xl">My Projects</h1>
-              <p className="mt-2">Manage your writing projects</p>
+              <h1 className="font-bold text-3xl">{m.projects.title}</h1>
+              <p className="mt-2">{m.projects.manage}</p>
             </div>
 
             <Dialog onOpenChange={setIsCreateDialogOpen} open={isCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  New Project
+                  {m.projects.new}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
-                  <DialogDescription>
-                    Start your next writing project. You can always edit these details later.
-                  </DialogDescription>
+                  <DialogTitle>{m.projects.createTitle}</DialogTitle>
+                  <DialogDescription>{m.projects.createHint}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Title *</Label>
+                    <Label htmlFor="title">{m.projects.titleLabel}</Label>
                     <Input
                       id="title"
                       onChange={(e) =>
                         setCreateForm((prev) => ({ ...prev, title: e.target.value }))
                       }
-                      placeholder="The Great Adventure"
+                      placeholder={m.projects.titlePlaceholder}
                       value={createForm.title}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">{m.projects.description}</Label>
                     <Textarea
                       id="description"
                       onChange={(e) =>
                         setCreateForm((prev) => ({ ...prev, description: e.target.value }))
                       }
-                      placeholder="A brief description of your project..."
+                      placeholder={m.projects.descriptionPlaceholder}
                       value={createForm.description}
                     />
                   </div>
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="type">Project Type</Label>
+                      <Label htmlFor="type">{m.projects.type}</Label>
                       <Select
                         onValueChange={(
                           value:
@@ -203,33 +203,33 @@ function ProjectsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="novel">Novel</SelectItem>
-                          <SelectItem value="trilogy">Trilogy</SelectItem>
-                          <SelectItem value="series">Series</SelectItem>
+                          <SelectItem value="novel">{m.projects.types.novel}</SelectItem>
+                          <SelectItem value="trilogy">{m.projects.types.trilogy}</SelectItem>
+                          <SelectItem value="series">{m.projects.types.series}</SelectItem>
                           <SelectItem value="short_story_collection">
-                            Short Story Collection
+                            {m.projects.types.short_story_collection}
                           </SelectItem>
-                          <SelectItem value="graphic_novel">Graphic Novel</SelectItem>
-                          <SelectItem value="screenplay">Screenplay</SelectItem>
+                          <SelectItem value="graphic_novel">{m.projects.types.graphic_novel}</SelectItem>
+                          <SelectItem value="screenplay">{m.projects.types.screenplay}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="genre">Genre</Label>
+                        <Label htmlFor="genre">{m.projects.genre}</Label>
                         <Input
                           id="genre"
                           onChange={(e) =>
                             setCreateForm((prev) => ({ ...prev, genre: e.target.value }))
                           }
-                          placeholder="e.g., Fantasy, Sci-Fi"
+                          placeholder={m.projects.genrePlaceholder}
                           value={createForm.genre}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="targetWordCount">Target Words</Label>
+                        <Label htmlFor="targetWordCount">{m.projects.targetWords}</Label>
                         <Input
                           id="targetWordCount"
                           onChange={(e) =>
@@ -243,7 +243,7 @@ function ProjectsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="visibility">Visibility</Label>
+                      <Label htmlFor="visibility">{m.projects.visibility}</Label>
                       <Select
                         onValueChange={(value: "private" | "organization" | "public") =>
                           setCreateForm((prev) => ({ ...prev, visibility: value }))
@@ -254,9 +254,11 @@ function ProjectsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="private">Private</SelectItem>
-                          <SelectItem value="organization">Organization</SelectItem>
-                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="private">{m.projects.visibilityOptions.private}</SelectItem>
+                          <SelectItem value="organization">
+                            {m.projects.visibilityOptions.organization}
+                          </SelectItem>
+                          <SelectItem value="public">{m.projects.visibilityOptions.public}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -265,10 +267,10 @@ function ProjectsPage() {
 
                 <DialogFooter>
                   <Button onClick={() => setIsCreateDialogOpen(false)} variant="outline">
-                    Cancel
+                    {m.common.cancel}
                   </Button>
                   <Button disabled={createProjectMutation.isPending} onClick={handleCreateProject}>
-                    {createProjectMutation.isPending ? "Creating..." : "Create Project"}
+                    {createProjectMutation.isPending ? m.projects.creating : m.projects.create}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -286,11 +288,11 @@ function ProjectsPage() {
         ) : (
           <div className="py-12 text-center">
             <BookOpen className="mx-auto mb-4 h-16 w-16 opacity-50" />
-            <h3 className="mb-2 font-medium text-xl">No projects yet</h3>
-            <p className="mb-6">Create your first project to get started writing!</p>
+            <h3 className="mb-2 font-medium text-xl">{m.projects.emptyTitle}</h3>
+            <p className="mb-6">{m.projects.emptyBody}</p>
             <Button className="flex items-center gap-2" onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="h-4 w-4" />
-              Create Your First Project
+              {m.dashboard.createFirst}
             </Button>
           </div>
         )}

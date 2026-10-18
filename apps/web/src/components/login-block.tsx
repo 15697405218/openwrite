@@ -10,17 +10,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient, fetchSessionData } from "@/lib/auth-client"
+import { fill, useLocale } from "@/i18n/locale"
 
 interface LoginBlockProps {
   mode: "signin" | "signup"
   onModeChange: (mode: "signin" | "signup") => void
 }
 
+function fieldErrorMessage(error: unknown): string {
+  if (typeof error === "string") {
+    return error
+  }
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message
+  }
+  return "Invalid value"
+}
+
+function FieldErrors({ errors }: { errors: readonly unknown[] }) {
+  return errors.map((error) => {
+    const message = fieldErrorMessage(error)
+    return (
+      <p className="text-destructive text-sm" key={message}>
+        {message}
+      </p>
+    )
+  })
+}
+
 export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
-  const navigate = useNavigate({ from: "/login" })
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showPassword, setShowPassword] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const { isPending } = authClient.useSession()
+  const { messages: m } = useLocale()
 
   const form = useForm({
     defaultValues: {
@@ -29,7 +58,8 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
       name: mode === "signup" ? "" : undefined,
     },
     onSubmit: async ({ value }) => {
-      const actionType = mode === "signin" ? "Sign in" : "Sign up"
+      const actionType = mode === "signin" ? m.auth.actionSignIn : m.auth.actionSignUp
+      setSubmitError(null)
 
       // Attempt authentication with Better Auth (ignoring any thrown errors)
       let authAttempted = false
@@ -53,7 +83,9 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
       }
 
       if (!authAttempted) {
-        toast.error(`${actionType} failed`)
+        const message = fill(m.auth.failed, { action: actionType })
+        setSubmitError(message)
+        toast.error(message)
         return
       }
 
@@ -66,7 +98,7 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
 
         if (sessionData?.authenticated && sessionData?.session?.user) {
           // Authentication was successful
-          toast.success(`${actionType} successful`)
+          toast.success(mode === "signin" ? m.auth.signInSuccess : m.auth.signUpSuccess)
 
           // Set the session data in the query cache to immediately update all components
           queryClient.setQueryData(["session"], sessionData)
@@ -83,32 +115,43 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
             to: "/dashboard",
           })
         } else {
-          // Authentication failed
-          toast.error(`${actionType} failed - please check your credentials`)
+          const message = fill(m.auth.checkCredentials, { action: actionType })
+          setSubmitError(message)
+          toast.error(message)
         }
       } catch {
-        toast.error(`${actionType} failed - please try again`)
+        const message = fill(m.auth.tryAgain, { action: actionType })
+        setSubmitError(message)
+        toast.error(message)
       }
     },
     validators: {
       onSubmit: ({ value }) => {
-        const baseSchema = {
-          email: z.string().email("Invalid email address"),
-          password: z.string().min(8, "Password must be at least 8 characters"),
-        }
-
         const schema =
           mode === "signin"
-            ? z.object(baseSchema)
+            ? z.object({
+                email: z.string().email(m.auth.invalidEmail),
+                password: z.string().min(8, m.auth.passwordMin),
+              })
             : z.object({
-                ...baseSchema,
-                name: z.string().min(2, "Name must be at least 2 characters"),
+                email: z.string().email(m.auth.invalidEmail),
+                password: z.string().min(8, m.auth.passwordMin),
+                name: z.string().min(2, m.auth.nameMin),
               })
 
         const result = schema.safeParse(value)
-        if (!result.success) {
-          return result.error.flatten()
+        if (result.success) {
+          return
         }
+
+        const fields: { email?: string; name?: string; password?: string } = {}
+        for (const issue of result.error.issues) {
+          const key = issue.path[0]
+          if (key === "email" || key === "name" || key === "password") {
+            fields[key] ??= issue.message
+          }
+        }
+        return { fields }
       },
     },
   })
@@ -116,7 +159,7 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
   if (isPending) {
     return (
       <div className="flex min-h-[80vh] w-full items-center justify-center px-4 py-6">
-        <div className="text-center">Loading...</div>
+        <div className="text-center">{m.common.loading}</div>
       </div>
     )
   }
@@ -128,23 +171,21 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
           {/* Header */}
           <div className="flex flex-col items-center text-center">
             <h1 className="font-semibold text-xl tracking-tight">
-              {mode === "signin" ? "Welcome back" : "Create an account"}
+              {mode === "signin" ? m.auth.welcomeBack : m.auth.createAccountTitle}
             </h1>
             <p className="text-muted-foreground text-sm">
-              {mode === "signin"
-                ? "Enter your credentials to sign in to your account"
-                : "Enter your information to create your account"}
+              {mode === "signin" ? m.auth.signInHint : m.auth.signUpHint}
             </p>
           </div>
 
           {/* Form */}
           <Card>
             <CardHeader className="space-y-1">
-              <CardTitle className="text-lg">{mode === "signin" ? "Sign in" : "Sign up"}</CardTitle>
+              <CardTitle className="text-lg">
+                {mode === "signin" ? m.auth.signInCard : m.auth.signUpCard}
+              </CardTitle>
               <CardDescription>
-                {mode === "signin"
-                  ? "Enter your email and password below"
-                  : "Create your account to get started"}
+                {mode === "signin" ? m.auth.signInCardHint : m.auth.signUpCardHint}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -161,20 +202,16 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
                     <form.Field name="name">
                       {(field) => (
                         <>
-                          <Label htmlFor={field.name}>Name</Label>
+                          <Label htmlFor={field.name}>{m.auth.name}</Label>
                           <Input
                             id={field.name}
                             name={field.name}
                             onBlur={field.handleBlur}
                             onChange={(e) => field.handleChange(e.target.value)}
-                            placeholder="John Doe"
+                            placeholder={m.auth.namePlaceholder}
                             value={field.state.value || ""}
                           />
-                          {field.state.meta.errors.map((error) => (
-                            <p className="text-destructive text-sm" key={String(error)}>
-                              {String(error)}
-                            </p>
-                          ))}
+                          <FieldErrors errors={field.state.meta.errors} />
                         </>
                       )}
                     </form.Field>
@@ -185,21 +222,17 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
                   <form.Field name="email">
                     {(field) => (
                       <>
-                        <Label htmlFor={field.name}>Email</Label>
+                        <Label htmlFor={field.name}>{m.auth.email}</Label>
                         <Input
                           id={field.name}
                           name={field.name}
                           onBlur={field.handleBlur}
                           onChange={(e) => field.handleChange(e.target.value)}
-                          placeholder="you@example.com"
+                          placeholder={m.auth.emailPlaceholder}
                           type="email"
                           value={field.state.value}
                         />
-                        {field.state.meta.errors.map((error) => (
-                          <p className="text-destructive text-sm" key={String(error)}>
-                            {String(error)}
-                          </p>
-                        ))}
+                        <FieldErrors errors={field.state.meta.errors} />
                       </>
                     )}
                   </form.Field>
@@ -209,14 +242,14 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
                   <form.Field name="password">
                     {(field) => (
                       <>
-                        <Label htmlFor={field.name}>Password</Label>
+                        <Label htmlFor={field.name}>{m.auth.password}</Label>
                         <div className="relative">
                           <Input
                             id={field.name}
                             name={field.name}
                             onBlur={field.handleBlur}
                             onChange={(e) => field.handleChange(e.target.value)}
-                            placeholder="Enter your password"
+                            placeholder={m.auth.passwordPlaceholder}
                             type={showPassword ? "text" : "password"}
                             value={field.state.value}
                           />
@@ -234,11 +267,7 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
                             )}
                           </Button>
                         </div>
-                        {field.state.meta.errors.map((error) => (
-                          <p className="text-destructive text-sm" key={String(error)}>
-                            {String(error)}
-                          </p>
-                        ))}
+                        <FieldErrors errors={field.state.meta.errors} />
                       </>
                     )}
                   </form.Field>
@@ -250,10 +279,12 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
                       className="text-muted-foreground text-sm underline-offset-4 hover:text-primary hover:underline"
                       to="/forgot-password"
                     >
-                      Forgot password?
+                      {m.auth.forgot}
                     </Link>
                   </div>
                 )}
+
+                {submitError ? <p className="text-destructive text-sm">{submitError}</p> : null}
 
                 <form.Subscribe>
                   {(state) => (
@@ -264,9 +295,9 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
                     >
                       {(() => {
                         if (state.isSubmitting) {
-                          return "Processing..."
+                          return m.auth.processing
                         }
-                        return mode === "signin" ? "Sign in" : "Create account"
+                        return mode === "signin" ? m.auth.signIn : m.auth.createAccount
                       })()}
                     </Button>
                   )}
@@ -279,37 +310,37 @@ export default function LoginBlock({ mode, onModeChange }: LoginBlockProps) {
           <div className="text-center text-sm">
             {mode === "signin" ? (
               <>
-                Don't have an account?{" "}
+                {m.auth.noAccount}{" "}
                 <Button
                   className="h-auto p-0 font-semibold"
                   onClick={() => onModeChange("signup")}
                   variant="link"
                 >
-                  Sign up
+                  {m.auth.signUp}
                 </Button>
               </>
             ) : (
               <>
-                Already have an account?{" "}
+                {m.auth.hasAccount}{" "}
                 <Button
                   className="h-auto p-0 font-semibold"
                   onClick={() => onModeChange("signin")}
                   variant="link"
                 >
-                  Sign in
+                  {m.auth.signIn}
                 </Button>
               </>
             )}
           </div>
 
           <p className="px-2 text-center text-muted-foreground text-sm">
-            By clicking continue, you agree to our{" "}
+            {m.auth.agree}{" "}
             <Link className="underline underline-offset-4 hover:text-primary" to="/terms">
-              Terms of Service
+              {m.auth.terms}
             </Link>{" "}
-            and{" "}
+            {m.auth.and}{" "}
             <Link className="underline underline-offset-4 hover:text-primary" to="/privacy">
-              Privacy Policy
+              {m.auth.privacy}
             </Link>
             .
           </p>
