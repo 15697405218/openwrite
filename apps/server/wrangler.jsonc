@@ -3,9 +3,6 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-06-15",
   "compatibility_flags": ["nodejs_compat"],
-  "routes": [
-    { "pattern": "openwrite.iliareingold.com", "custom_domain": true }
-  ],
   // Keep the legacy workers.dev URL serving existing users' bookmarks
   "workers_dev": true,
   "send_email": [{ "name": "EMAIL" }],
@@ -37,8 +34,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "openwrite-us-east-1",
-      "database_id": "9c50826a-1e7a-498c-ab1b-d1a73192cca9",
+      "database_name": "openwrite-wsz",
+      "database_id": "bdd08548-5279-41bf-bb62-57cded85ae3a",
       "preview_database_id": "local-test-db",
       "migrations_dir": "./src/db/migrations"
     }
