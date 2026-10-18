@@ -14,16 +14,13 @@ const catalogs: Record<Locale, Messages> = {
 
 function readStoredLocale(): Locale {
   if (typeof localStorage === "undefined") {
-    return "en"
+    return "zh"
   }
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored === "zh" || stored === "en") {
     return stored
   }
-  if (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")) {
-    return "zh"
-  }
-  return "en"
+  return "zh"
 }
 
 interface LocaleContextValue {
@@ -33,10 +30,10 @@ interface LocaleContextValue {
 }
 
 const LocaleContext = createContext<LocaleContextValue>({
-  locale: "en",
-  messages: en,
+  locale: "zh",
+  messages: zh,
   setLocale: () => {
-    // Default context is English until a provider mounts.
+    // Default context is Chinese until a provider mounts.
   },
 })
 

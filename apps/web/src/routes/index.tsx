@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { Code2, GitFork, Heart, Star, Users } from "lucide-react"
+import { Code2, Heart, Star, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -224,7 +224,17 @@ function HomeComponent() {
           <Button asChild className="gap-2" variant="outline">
             <a href="https://github.com/ilrein/openwrite" rel="noopener noreferrer" target="_blank">
               <GithubIcon className="h-4 w-4" />
-              {m.home.viewSource}
+              {m.home.viewUpstream}
+            </a>
+          </Button>
+          <Button asChild className="gap-2" variant="outline">
+            <a
+              href="https://github.com/15697405218/openwrite-wszbranch"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <GithubIcon className="h-4 w-4" />
+              {m.home.viewFork}
             </a>
           </Button>
           <Button asChild className="gap-2" variant="outline">
@@ -234,17 +244,17 @@ function HomeComponent() {
               target="_blank"
             >
               <Star className="h-4 w-4" />
-              {m.home.star}
+              {m.home.starUpstream}
             </a>
           </Button>
           <Button asChild className="gap-2" variant="outline">
             <a
-              href="https://github.com/ilrein/openwrite/fork"
+              href="https://github.com/15697405218/openwrite-wszbranch/stargazers"
               rel="noopener noreferrer"
               target="_blank"
             >
-              <GitFork className="h-4 w-4" />
-              {m.home.fork}
+              <Star className="h-4 w-4" />
+              {m.home.starFork}
             </a>
           </Button>
         </div>
