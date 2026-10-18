@@ -22,7 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useLocale } from "@/i18n/locale"
 import { api, type Character, type Location, type LoreEntry, type PlotThread } from "@/lib/api"
+import { toastCodexSummary } from "@/lib/codex-summary"
 
 // Define field types for dynamic form generation
 type FieldType = "text" | "textarea" | "select" | "number"
@@ -287,6 +289,7 @@ export function DynamicCodexForm({
   onCancel,
 }: DynamicCodexFormProps) {
   const queryClient = useQueryClient()
+  const { messages: m } = useLocale()
 
   const formConfig = useMemo(() => getFormConfig(entryType), [entryType])
   const schema = useMemo(() => createDynamicSchema(formConfig), [formConfig])
@@ -313,9 +316,10 @@ export function DynamicCodexForm({
       }
       throw new Error(`Update not implemented for ${entryType}`)
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [entryType, projectId] })
       toast.success(`${entryType.slice(0, -1)} updated successfully!`)
+      toastCodexSummary(result, m)
       onSave()
     },
     onError: (error) => {

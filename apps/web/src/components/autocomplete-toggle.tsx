@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { ChevronDown, Sparkles } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -14,6 +14,13 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useLocale } from "@/i18n/locale"
 import { type AiProvider, aiProvidersApi } from "@/lib/api/ai-providers"
+import {
+  getAutocompleteSnapshot,
+  setAutocompleteEnabled,
+  setAutocompleteModel,
+  subscribeAutocomplete,
+} from "@/lib/autocomplete"
+import { modelsForProvider, preferredModelId } from "@/lib/provider-models"
 
 interface Model {
   id: string
@@ -36,7 +43,13 @@ export function AutocompleteToggle({
   onModelChange,
 }: AutocompleteToggleProps) {
   const { messages: m } = useLocale()
-  const [autocompleteEnabled, setAutocompleteEnabled] = useState(isEnabled)
+  const autocomplete = useSyncExternalStore(
+    subscribeAutocomplete,
+    getAutocompleteSnapshot,
+    getAutocompleteSnapshot
+  )
+  const autocompleteEnabled = isEnabled || autocomplete.enabled
+  const pickedModelId = selectedModel ?? autocomplete.modelId
 
   // Fetch AI providers
   const { data: providers, isLoading } = useQuery({
@@ -44,22 +57,34 @@ export function AutocompleteToggle({
     queryFn: () => aiProvidersApi.list(),
   })
 
-  const allProviders = providers || []
-  const activeProviders = allProviders.filter((p: AiProvider) => p.isActive)
+  const allProviders = providers ?? []
+  const activeProviders = allProviders.filter((provider: AiProvider) => provider.isActive)
   const hasActiveProviders = activeProviders.length > 0
 
-  // Get all available models from active providers
-  const availableModels: Model[] = activeProviders.flatMap((provider: AiProvider) => {
-    // Type assertion since supportedModels isn't in the base type but exists in the data
-    const providerWithModels = provider as AiProvider & { supportedModels?: string[] }
-    const models = providerWithModels.supportedModels || []
-    return models.map((model: string) => ({
+  useEffect(() => {
+    if (selectedModel) {
+      setAutocompleteModel(selectedModel)
+    }
+  }, [selectedModel])
+
+  useEffect(() => {
+    if (selectedModel || pickedModelId || !providers) {
+      return
+    }
+    const modelId = preferredModelId(providers)
+    if (modelId) {
+      setAutocompleteModel(modelId)
+    }
+  }, [pickedModelId, providers, selectedModel])
+
+  const availableModels: Model[] = activeProviders.flatMap((provider: AiProvider) =>
+    modelsForProvider(provider).map((model) => ({
       id: model,
       name: model,
       provider: provider.provider,
       providerLabel: provider.keyLabel || provider.provider,
     }))
-  })
+  )
 
   const handleToggle = (enabled: boolean) => {
     setAutocompleteEnabled(enabled)
@@ -67,10 +92,11 @@ export function AutocompleteToggle({
   }
 
   const handleModelSelect = (modelId: string, provider: string) => {
+    setAutocompleteModel(modelId)
     onModelChange?.(modelId, provider)
   }
 
-  const currentModel = availableModels.find((model) => model.id === selectedModel)
+  const currentModel = availableModels.find((model) => model.id === pickedModelId)
 
   // Helper functions to avoid nested ternaries
   const getTooltipMessage = () => {

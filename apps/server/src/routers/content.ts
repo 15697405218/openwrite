@@ -1,8 +1,10 @@
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, count, eq } from "drizzle-orm"
 import { type Context, Hono } from "hono"
 import { db } from "../db"
-import { chapter, project, work } from "../db/schema"
+import { chapter, project, volume, work } from "../db/schema"
+import { generateChapterSummary } from "../lib/chapter-summary"
 import { buildReorderUpdates, nextChapterTitle, workTypeForProject } from "../lib/chapters"
+import { attachChapterBindings, readIdList } from "../lib/codex-links"
 import { isStaleContentWrite, secondResolutionNow } from "../lib/optimistic-concurrency"
 import { countWordsInHtml } from "../lib/word-count"
 import { recordWritingActivity } from "../lib/writing-sessions"
@@ -87,6 +89,77 @@ export async function getOrCreatePrimaryWork(projectId: string): Promise<string 
   return workId
 }
 
+const DEFAULT_VOLUME_TITLE = "Volume 1"
+
+async function insertVolume(workId: string, title: string, order: number): Promise<string> {
+  const id = crypto.randomUUID()
+  const now = new Date()
+  await db.insert(volume).values({
+    id,
+    workId,
+    title,
+    order,
+    createdAt: now,
+    updatedAt: now,
+  })
+  return id
+}
+
+/** Last volume on the book, creating the first one when the book has none. */
+export async function ensureVolume(workId: string, title?: string): Promise<string> {
+  const existing = await db
+    .select({ id: volume.id })
+    .from(volume)
+    .where(eq(volume.workId, workId))
+    .orderBy(asc(volume.order), asc(volume.createdAt))
+
+  const last = existing.at(-1)
+  if (last) {
+    return last.id
+  }
+
+  const trimmed = title?.trim()
+  return await insertVolume(
+    workId,
+    trimmed && trimmed.length > 0 ? trimmed : DEFAULT_VOLUME_TITLE,
+    1
+  )
+}
+
+export async function listProjectVolumes(projectId: string) {
+  return await db
+    .select({
+      id: volume.id,
+      title: volume.title,
+      order: volume.order,
+      workId: volume.workId,
+      createdAt: volume.createdAt,
+      updatedAt: volume.updatedAt,
+    })
+    .from(volume)
+    .innerJoin(work, eq(volume.workId, work.id))
+    .where(eq(work.projectId, projectId))
+    .orderBy(asc(volume.order), asc(volume.createdAt))
+}
+
+async function getVolumeInProject(projectId: string, volumeId: string) {
+  return await db
+    .select({ id: volume.id, workId: volume.workId })
+    .from(volume)
+    .innerJoin(work, eq(volume.workId, work.id))
+    .where(and(eq(volume.id, volumeId), eq(work.projectId, projectId)))
+    .get()
+}
+
+async function countChaptersInVolume(volumeId: string): Promise<number> {
+  const row = await db
+    .select({ value: count() })
+    .from(chapter)
+    .where(eq(chapter.volumeId, volumeId))
+    .get()
+  return row?.value ?? 0
+}
+
 export async function listProjectChapters(projectId: string) {
   return await db
     .select({
@@ -97,12 +170,14 @@ export async function listProjectChapters(projectId: string) {
       status: chapter.status,
       wordCount: chapter.wordCount,
       workId: chapter.workId,
+      volumeId: chapter.volumeId,
       updatedAt: chapter.updatedAt,
     })
     .from(chapter)
     .innerJoin(work, eq(chapter.workId, work.id))
+    .innerJoin(volume, eq(chapter.volumeId, volume.id))
     .where(eq(work.projectId, projectId))
-    .orderBy(asc(chapter.order), asc(chapter.createdAt))
+    .orderBy(asc(volume.order), asc(chapter.order), asc(chapter.createdAt))
 }
 
 async function getChapterInProject(projectId: string, chapterId: string) {
@@ -158,7 +233,119 @@ function validateContentBody(content: unknown): { ok: true; content: string } | 
 }
 
 // ---------------------------------------------------------------------------
+// Volumes
+
+contentRouter.get(
+  "/projects/:projectId/volumes",
+  requireAuth,
+  verifyProjectAccess,
+  async (c: AppContext) => {
+    const projectId = requiredParam(c, "projectId")
+    const volumes = await listProjectVolumes(projectId)
+    return c.json({
+      volumes: volumes.map((item) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+      })),
+    })
+  }
+)
+
+contentRouter.post(
+  "/projects/:projectId/volumes",
+  requireAuth,
+  verifyProjectAccess,
+  async (c: AppContext) => {
+    const projectId = requiredParam(c, "projectId")
+    const workId = await getOrCreatePrimaryWork(projectId)
+    if (!workId) {
+      return c.json({ error: "Project not found" }, 404)
+    }
+
+    let title = DEFAULT_VOLUME_TITLE
+    try {
+      const body = await c.req.json()
+      if (typeof body.title === "string" && body.title.trim()) {
+        title = body.title.trim()
+      }
+    } catch {
+      // Empty body uses the default title
+    }
+
+    const existing = await listProjectVolumes(projectId)
+    const id = await insertVolume(workId, title, existing.length + 1)
+    return c.json({ success: true, id }, 201)
+  }
+)
+
+contentRouter.put(
+  "/projects/:projectId/volumes/:volumeId",
+  requireAuth,
+  verifyProjectAccess,
+  async (c: AppContext) => {
+    const projectId = requiredParam(c, "projectId")
+    const volumeId = requiredParam(c, "volumeId")
+    const existing = await getVolumeInProject(projectId, volumeId)
+    if (!existing) {
+      return c.json({ error: "Volume not found" }, 404)
+    }
+
+    const body = await c.req.json()
+    if (typeof body.title !== "string" || body.title.trim().length === 0) {
+      return c.json({ error: "Title is required" }, 400)
+    }
+
+    await db
+      .update(volume)
+      .set({ title: body.title.trim(), updatedAt: new Date() })
+      .where(eq(volume.id, volumeId))
+
+    return c.json({ success: true })
+  }
+)
+
+contentRouter.delete(
+  "/projects/:projectId/volumes/:volumeId",
+  requireAuth,
+  verifyProjectAccess,
+  async (c: AppContext) => {
+    const projectId = requiredParam(c, "projectId")
+    const volumeId = requiredParam(c, "volumeId")
+    const existing = await getVolumeInProject(projectId, volumeId)
+    if (!existing) {
+      return c.json({ error: "Volume not found" }, 404)
+    }
+
+    const chapterCount = await countChaptersInVolume(volumeId)
+    if (chapterCount > 0) {
+      return c.json({ error: "volume_not_empty" }, 400)
+    }
+
+    await db.delete(volume).where(eq(volume.id, volumeId))
+    return c.json({ success: true })
+  }
+)
+
+// ---------------------------------------------------------------------------
 // Chapter CRUD
+
+async function summarizePreviousChapter(c: AppContext, projectId: string, newChapterId: string) {
+  const chapters = await listProjectChapters(projectId)
+  const index = chapters.map((item) => item.id).indexOf(newChapterId)
+  const previous = index > 0 ? chapters.at(index - 1) : undefined
+  if (!previous || (previous.summary ?? "").trim().length > 0) {
+    return false
+  }
+
+  const result = await generateChapterSummary({
+    projectId,
+    chapterId: previous.id,
+    userId: c.get("user").id,
+    env: c.env,
+  })
+  return result.ok
+}
 
 // List chapters for a project
 contentRouter.get(
@@ -188,9 +375,23 @@ contentRouter.post(
     const projectId = requiredParam(c, "projectId")
 
     let title: string | undefined
+    let requestedVolumeId: string | undefined
+    let volumeTitle: string | undefined
+    let characterIds: string[] = []
+    let locationIds: string[] = []
+    let plotIds: string[] = []
     try {
       const body = await c.req.json()
       title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : undefined
+      requestedVolumeId =
+        typeof body.volumeId === "string" && body.volumeId.trim() ? body.volumeId.trim() : undefined
+      volumeTitle =
+        typeof body.volumeTitle === "string" && body.volumeTitle.trim()
+          ? body.volumeTitle.trim()
+          : undefined
+      characterIds = readIdList(body.characterIds) ?? []
+      locationIds = readIdList(body.locationIds) ?? []
+      plotIds = readIdList(body.plotIds) ?? []
     } catch {
       // Empty body is fine; default title is used
     }
@@ -200,10 +401,20 @@ contentRouter.post(
       return c.json({ error: "Project not found" }, 404)
     }
 
+    let volumeId = requestedVolumeId
+    if (volumeId) {
+      const match = await getVolumeInProject(projectId, volumeId)
+      if (!match) {
+        return c.json({ error: "Volume not found" }, 404)
+      }
+    } else {
+      volumeId = await ensureVolume(workId, volumeTitle)
+    }
+
     const existing = await listProjectChapters(projectId)
     const id = crypto.randomUUID()
     const now = new Date()
-    const order = existing.length + 1
+    const order = existing.filter((item) => item.volumeId === volumeId).length + 1
 
     await db.insert(chapter).values({
       id,
@@ -213,11 +424,21 @@ contentRouter.post(
       order,
       status: "draft",
       workId,
+      volumeId,
       createdAt: now,
       updatedAt: now,
     })
 
-    return c.json({ success: true, id, order }, 201)
+    await attachChapterBindings(projectId, id, { characterIds, locationIds, plotIds })
+
+    let previousSummary = false
+    try {
+      previousSummary = await summarizePreviousChapter(c, projectId, id)
+    } catch {
+      previousSummary = false
+    }
+
+    return c.json({ success: true, id, order, previousSummary }, 201)
   }
 )
 
@@ -254,6 +475,33 @@ contentRouter.put(
   }
 )
 
+contentRouter.post(
+  "/projects/:projectId/chapters/:chapterId/summary",
+  requireAuth,
+  verifyProjectAccess,
+  async (c: AppContext) => {
+    const projectId = requiredParam(c, "projectId")
+    const chapterId = requiredParam(c, "chapterId")
+    const result = await generateChapterSummary({
+      projectId,
+      chapterId,
+      userId: c.get("user").id,
+      env: c.env,
+    })
+
+    if (!result.ok) {
+      const status = result.status
+      const body = { error: result.error, ...(result.code ? { code: result.code } : {}) }
+      if (status === 400 || status === 404 || status === 412 || status === 500 || status === 502) {
+        return c.json(body, status)
+      }
+      return c.json(body, 500)
+    }
+
+    return c.json({ summary: result.summary })
+  }
+)
+
 // Reorder chapters — body is the full list of chapter ids in the new order
 contentRouter.post(
   "/projects/:projectId/chapters/reorder",
@@ -268,13 +516,33 @@ contentRouter.post(
     }
 
     const existing = await listProjectChapters(projectId)
-    const updates = buildReorderUpdates(
-      body.chapterIds,
-      existing.map((ch) => ch.id)
-    )
+    const orderedIds: string[] = []
+    let targetVolumeId: string | null = null
+    for (const id of body.chapterIds) {
+      if (typeof id !== "string") {
+        return c.json({ error: "chapterIds must contain exactly one volume's chapter ids" }, 400)
+      }
+      const match = existing.find((item) => item.id === id)
+      if (!match) {
+        return c.json({ error: "chapterIds must contain exactly one volume's chapter ids" }, 400)
+      }
+      if (targetVolumeId === null) {
+        targetVolumeId = match.volumeId
+      } else if (targetVolumeId !== match.volumeId) {
+        return c.json({ error: "chapterIds must contain exactly one volume's chapter ids" }, 400)
+      }
+      orderedIds.push(id)
+    }
+    if (!targetVolumeId) {
+      return c.json({ error: "chapterIds must contain exactly one volume's chapter ids" }, 400)
+    }
+    const inVolume = existing
+      .filter((item) => item.volumeId === targetVolumeId)
+      .map((item) => item.id)
+    const updates = buildReorderUpdates(orderedIds, inVolume)
 
     if (!updates) {
-      return c.json({ error: "chapterIds must contain exactly the project's chapter ids" }, 400)
+      return c.json({ error: "chapterIds must contain exactly one volume's chapter ids" }, 400)
     }
 
     const now = new Date()
@@ -468,6 +736,7 @@ contentRouter.put(
       if (!workId) {
         return c.json({ error: "Project not found" }, 404)
       }
+      const volumeId = await ensureVolume(workId)
       const id = crypto.randomUUID()
       const now = new Date()
       await db.insert(chapter).values({
@@ -478,6 +747,7 @@ contentRouter.put(
         order: 1,
         status: "draft",
         workId,
+        volumeId,
         createdAt: now,
         updatedAt: now,
       })

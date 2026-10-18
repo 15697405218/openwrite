@@ -1,16 +1,37 @@
 import { and, asc, eq } from "drizzle-orm"
 import { type Context, Hono } from "hono"
 import { db } from "../db"
-import { aiProvider, character, project } from "../db/schema"
+import { aiProvider } from "../db/schema"
+import { SUMMARY_SYSTEM, summaryRequest } from "../lib/chat-memory"
+import type { ModelToolCall, ProviderMessage } from "../lib/chat-model"
+import { listVisibleChat, readChatPause } from "../lib/chat-store"
+import type { ManuscriptTool } from "../lib/chat-tool-schema"
+import { replyInThread, resumeCutoffInThread, resumeInThread } from "../lib/chat-turn"
+import {
+  COMPLETION_SYSTEM,
+  cleanContinuation,
+  deepseekCompletionExtras,
+  MIN_COMPLETION_PREFIX,
+  readCompletionPrefix,
+} from "../lib/completion-text"
 import { decryptApiKey } from "../lib/encryption"
+import { loadChatPacket } from "../lib/load-chat-context"
+import {
+  AUTOCOMPLETE_MAX_TOKENS,
+  boundedOutputTokens,
+  CHAT_MAX_TOKENS,
+  CONVERSATION_SUMMARY_MAX_TOKENS,
+} from "../lib/output-budget"
 import { requireAuth } from "../middleware/auth"
 
-interface Env {
+export interface AiRuntimeEnv {
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL: string
   CORS_ORIGIN: string
   ENCRYPTION_KEY: string
 }
+
+type Env = AiRuntimeEnv
 
 interface Variables {
   activeOrganization: {
@@ -38,8 +59,11 @@ interface ChatMessage {
 
 const MAX_MESSAGES = 40
 const MAX_TOTAL_CHARS = 32_000
-const MAX_OUTPUT_TOKENS = 2048
+const MAX_OUTPUT_TOKENS = CHAT_MAX_TOKENS
 const UPSTREAM_ERROR_PREVIEW_CHARS = 300
+const MAX_PREVIOUS_CHAPTERS = 30
+const MAX_SUMMARY_CHAPTERS = 40
+const MAX_CLIENT_CHAPTER_CHARS = 100_000
 
 // Providers that expose an OpenAI-compatible chat completions endpoint
 const OPENAI_COMPATIBLE = {
@@ -77,11 +101,6 @@ const OPENROUTER_HEADERS = {
   "X-Title": "OpenWrite",
 }
 
-const BASE_SYSTEM_PROMPT = `You are a thoughtful writing assistant for fiction writers using OpenWrite.
-Help with character development, plot structure, pacing, dialogue, world-building, and prose style.
-Be specific and constructive. Keep responses concise enough to read in a sidebar — prefer a few focused paragraphs or a short list over an essay.
-When the writer asks for prose (a rewrite, a continuation, a description), provide it directly so it can be inserted into their manuscript.`
-
 function validateMessages(input: unknown): ChatMessage[] | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_MESSAGES) {
     return null
@@ -107,55 +126,80 @@ function validateMessages(input: unknown): ChatMessage[] | null {
   return messages
 }
 
-async function buildSystemPrompt(projectId: string | undefined, organizationId: string) {
-  if (!projectId) {
-    return BASE_SYSTEM_PROMPT
+function readCount(value: unknown, fallback: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback
   }
+  return Math.min(max, Math.max(0, Math.trunc(value)))
+}
 
-  const projectData = await db
-    .select({
-      title: project.title,
-      type: project.type,
-      genre: project.genre,
-      description: project.description,
-    })
-    .from(project)
-    .where(and(eq(project.id, projectId), eq(project.organizationId, organizationId)))
-    .get()
-
-  if (!projectData) {
-    return BASE_SYSTEM_PROMPT
+function readSummaryIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
   }
-
-  const characters = await db
-    .select({ name: character.name, description: character.description })
-    .from(character)
-    .where(eq(character.projectId, projectId))
-    .orderBy(asc(character.name))
-    .limit(20)
-
-  const lines = [BASE_SYSTEM_PROMPT, "", "The writer is working on this project:"]
-  lines.push(`- Title: ${projectData.title} (${projectData.type})`)
-  if (projectData.genre) {
-    lines.push(`- Genre: ${projectData.genre}`)
-  }
-  if (projectData.description) {
-    lines.push(`- Description: ${projectData.description.slice(0, 500)}`)
-  }
-  if (characters.length > 0) {
-    lines.push("- Characters:")
-    for (const char of characters) {
-      const description = char.description ? ` — ${char.description.slice(0, 200)}` : ""
-      lines.push(`  - ${char.name}${description}`)
+  const ids: string[] = []
+  for (const item of value) {
+    if (typeof item === "string" && item.length > 0 && !ids.includes(item)) {
+      ids.push(item)
+    }
+    if (ids.length >= MAX_SUMMARY_CHAPTERS) {
+      break
     }
   }
+  return ids
+}
 
-  return lines.join("\n")
+const MAX_CHAPTER_HTML_CHARS = 1_000_000
+
+function readDecisions(value: unknown): { approved: boolean; id: string }[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+  const decisions: { approved: boolean; id: string }[] = []
+  for (const item of value) {
+    if (!item || typeof item !== "object" || !("id" in item) || !("approved" in item)) {
+      return null
+    }
+    if (typeof item.id !== "string" || typeof item.approved !== "boolean") {
+      return null
+    }
+    decisions.push({ id: item.id, approved: item.approved })
+  }
+  return decisions
+}
+
+function readChapterHtml(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > MAX_CHAPTER_HTML_CHARS) {
+    return
+  }
+  return value
+}
+
+function readChatContext(body: {
+  chapterContent?: unknown
+  chapterHtml?: unknown
+  chapterId?: unknown
+  previousChapterCount?: unknown
+  summaryChapterIds?: unknown
+}) {
+  return {
+    chapterId:
+      typeof body.chapterId === "string" && body.chapterId.length > 0 ? body.chapterId : undefined,
+    previousChapterCount: readCount(body.previousChapterCount, 3, MAX_PREVIOUS_CHAPTERS),
+    summaryChapterIds: readSummaryIds(body.summaryChapterIds),
+    chapterContent:
+      typeof body.chapterContent === "string"
+        ? body.chapterContent.slice(0, MAX_CLIENT_CHAPTER_CHARS)
+        : undefined,
+    chapterHtml: readChapterHtml(body.chapterHtml),
+  }
 }
 
 interface UpstreamResult {
   error?: string
   message?: string
+  toolCalls?: ModelToolCall[]
+  truncated?: boolean
 }
 
 async function readUpstreamError(response: Response): Promise<string> {
@@ -167,13 +211,54 @@ async function readUpstreamError(response: Response): Promise<string> {
   }
 }
 
+function toOpenAiMessage(message: ProviderMessage) {
+  if (message.role === "tool") {
+    return {
+      role: "tool",
+      tool_call_id: message.toolCallId,
+      content: message.content,
+    }
+  }
+  if (message.toolCalls && message.toolCalls.length > 0) {
+    return {
+      role: "assistant",
+      content: message.content.length > 0 ? message.content : null,
+      tool_calls: message.toolCalls.map((call) => ({
+        id: call.id,
+        type: "function",
+        function: { name: call.name, arguments: call.arguments },
+      })),
+    }
+  }
+  return { role: message.role, content: message.content }
+}
+
+function readToolCalls(message: {
+  tool_calls?: { function?: { arguments?: string; name?: string }; id?: string }[]
+}): ModelToolCall[] {
+  const calls: ModelToolCall[] = []
+  for (const call of message.tool_calls ?? []) {
+    if (call.id && call.function?.name) {
+      calls.push({
+        id: call.id,
+        name: call.function.name,
+        arguments: call.function.arguments ?? "{}",
+      })
+    }
+  }
+  return calls
+}
+
 async function callOpenAiCompatible(options: {
   url: string
   apiKey: string | null
   model: string
   system: string
-  messages: ChatMessage[]
+  messages: ProviderMessage[]
+  disableThinking?: boolean
   extraHeaders?: Record<string, string>
+  maxTokens?: number
+  tools?: ManuscriptTool[]
 }): Promise<UpstreamResult> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -188,8 +273,13 @@ async function callOpenAiCompatible(options: {
     headers,
     body: JSON.stringify({
       model: options.model,
-      max_tokens: MAX_OUTPUT_TOKENS,
-      messages: [{ role: "system", content: options.system }, ...options.messages],
+      max_tokens: boundedOutputTokens(options.url, options.maxTokens ?? MAX_OUTPUT_TOKENS),
+      messages: [
+        { role: "system", content: options.system },
+        ...options.messages.map(toOpenAiMessage),
+      ],
+      ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.disableThinking ? deepseekCompletionExtras(options.url) : {}),
     }),
   })
 
@@ -204,22 +294,44 @@ async function callOpenAiCompatible(options: {
   }
 
   const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[]
+    choices?: {
+      finish_reason?: string | null
+      message?: {
+        content?: string | null
+        tool_calls?: { function?: { arguments?: string; name?: string }; id?: string }[]
+      }
+    }[]
   }
-  const message = data.choices?.at(0)?.message?.content
+  const choice = data.choices?.at(0)
+  const raw = choice?.message
+  const toolCalls = raw ? readToolCalls(raw) : []
+  const message = typeof raw?.content === "string" ? raw.content : ""
 
-  if (!message) {
+  if (message.length === 0 && toolCalls.length === 0) {
     return { error: "Provider returned an empty response" }
   }
 
-  return { message }
+  return { message, toolCalls, truncated: choice?.finish_reason === "length" }
+}
+
+function anthropicMessages(messages: ProviderMessage[]): ChatMessage[] {
+  const converted: ChatMessage[] = []
+  for (const message of messages) {
+    if (message.role === "assistant" || message.role === "user") {
+      converted.push({ role: message.role, content: message.content })
+      continue
+    }
+    converted.push({ role: "user", content: `Tool result:\n${message.content}` })
+  }
+  return converted
 }
 
 async function callAnthropic(options: {
   apiKey: string
   model: string
   system: string
-  messages: ChatMessage[]
+  messages: ProviderMessage[]
+  maxTokens?: number
 }): Promise<UpstreamResult> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -230,9 +342,12 @@ async function callAnthropic(options: {
     },
     body: JSON.stringify({
       model: options.model,
-      max_tokens: MAX_OUTPUT_TOKENS,
+      max_tokens: boundedOutputTokens(
+        "https://api.anthropic.com/v1/messages",
+        options.maxTokens ?? MAX_OUTPUT_TOKENS
+      ),
       system: options.system,
-      messages: options.messages,
+      messages: anthropicMessages(options.messages),
     }),
   })
 
@@ -242,6 +357,7 @@ async function callAnthropic(options: {
 
   const data = (await response.json()) as {
     content?: { type: string; text?: string }[]
+    stop_reason?: string | null
   }
   const message = data.content
     ?.filter((block) => block.type === "text" && block.text)
@@ -252,7 +368,7 @@ async function callAnthropic(options: {
     return { error: "Provider returned an empty response" }
   }
 
-  return { message }
+  return { message, truncated: data.stop_reason === "max_tokens" }
 }
 
 function parseProviderConfig(raw: string | null): Record<string, unknown> {
@@ -343,7 +459,10 @@ async function dispatchToProvider(options: {
   providerConfig: Record<string, unknown>
   model: string | undefined
   system: string
-  messages: ChatMessage[]
+  messages: ProviderMessage[]
+  disableThinking?: boolean
+  maxTokens?: number
+  tools?: ManuscriptTool[]
 }): Promise<UpstreamResult & { model?: string }> {
   const { provider, apiKey, providerConfig, system, messages } = options
 
@@ -352,7 +471,16 @@ async function dispatchToProvider(options: {
       return { error: "Anthropic provider has no API key" }
     }
     const model = resolveModel(options.model, providerConfig) ?? ANTHROPIC_DEFAULT_MODEL
-    return { ...(await callAnthropic({ apiKey, model, system, messages })), model }
+    return {
+      ...(await callAnthropic({
+        apiKey,
+        model,
+        system,
+        messages,
+        maxTokens: options.maxTokens,
+      })),
+      model,
+    }
   }
 
   const target = resolveProviderTarget({ provider, providerConfig, model: options.model })
@@ -370,7 +498,10 @@ async function dispatchToProvider(options: {
       model: target.model,
       system,
       messages,
+      disableThinking: options.disableThinking,
       extraHeaders: target.extraHeaders,
+      maxTokens: options.maxTokens,
+      tools: options.tools,
     })),
     model: target.model,
   }
@@ -386,6 +517,8 @@ interface CompletionSuccess {
   message: string
   model: string | null
   provider: string
+  toolCalls: ModelToolCall[]
+  truncated?: boolean
 }
 
 type CompletionResult = CompletionSuccess | CompletionFailure
@@ -399,8 +532,11 @@ async function runCompletionForUser(options: {
   userId: string
   env: Env
   system: string
-  messages: ChatMessage[]
+  messages: ProviderMessage[]
+  disableThinking?: boolean
   model?: string
+  maxTokens?: number
+  tools?: ManuscriptTool[]
 }): Promise<CompletionResult> {
   const providers = await db
     .select({
@@ -445,9 +581,14 @@ async function runCompletionForUser(options: {
       model: options.model,
       system: options.system,
       messages: options.messages,
+      disableThinking: options.disableThinking,
+      maxTokens: options.maxTokens,
+      tools: options.tools,
     })
 
-    if (result.error || !result.message) {
+    const toolCalls = result.toolCalls ?? []
+    const text = result.message ?? ""
+    if (result.error || (text.length === 0 && toolCalls.length === 0)) {
       return { error: result.error ?? "Provider returned no content", status: 502 }
     }
 
@@ -457,52 +598,347 @@ async function runCompletionForUser(options: {
       .where(eq(aiProvider.id, selected.id))
 
     return {
-      message: result.message,
+      message: text,
       provider: selected.provider,
       model: result.model ?? null,
+      toolCalls,
+      truncated: result.truncated === true,
     }
   } catch {
     return { error: "Failed to reach the AI provider", status: 502 }
   }
 }
 
+const MAX_USER_MESSAGE_CHARS = 8000
+
+function readUserText(body: { content?: unknown; messages?: unknown }): string | null {
+  if (typeof body.content === "string" && body.content.trim().length > 0) {
+    return body.content.trim().slice(0, MAX_USER_MESSAGE_CHARS)
+  }
+  const messages = validateMessages(body.messages)
+  const last = messages?.at(-1)?.content.trim() ?? ""
+  if (last.length === 0) {
+    return null
+  }
+  return last.slice(0, MAX_USER_MESSAGE_CHARS)
+}
+
 const aiRouter = new Hono<{ Bindings: Env; Variables: Variables }>()
+
+aiRouter.get("/chat", requireAuth, async (c: AppContext) => {
+  const projectId = c.req.query("projectId")
+  if (!projectId) {
+    return c.json({ error: "projectId is required" }, 400)
+  }
+  const packet = await loadChatPacket({
+    projectId,
+    organizationId: c.get("activeOrganization")?.id ?? "",
+    previousChapterCount: 0,
+    summaryChapterIds: [],
+  })
+  if (!packet) {
+    return c.json({ error: "Project not found" }, 404)
+  }
+  const pause = await readChatPause(projectId, c.get("user").id)
+  return c.json({ messages: await listVisibleChat(projectId, c.get("user").id), ...pause })
+})
 
 aiRouter.post("/chat", requireAuth, async (c: AppContext) => {
   const user = c.get("user")
   const activeOrganization = c.get("activeOrganization")
 
-  let body: { messages?: unknown; projectId?: unknown; model?: unknown }
+  let body: {
+    chapterContent?: unknown
+    chapterHtml?: unknown
+    chapterId?: unknown
+    content?: unknown
+    messages?: unknown
+    allowCurrentChapter?: unknown
+    model?: unknown
+    previousChapterCount?: unknown
+    projectId?: unknown
+    summaryChapterIds?: unknown
+  }
   try {
     body = await c.req.json()
   } catch {
     return c.json({ error: "Invalid JSON body" }, 400)
   }
 
-  const messages = validateMessages(body.messages)
-  if (!messages) {
-    return c.json({ error: "messages must be a non-empty list ending with a user message" }, 400)
+  const projectId = typeof body.projectId === "string" ? body.projectId : ""
+  const userText = readUserText(body)
+  if (projectId.length === 0 || !userText) {
+    return c.json({ error: "projectId and a user message are required" }, 400)
   }
 
-  const projectId = typeof body.projectId === "string" ? body.projectId : undefined
-  const system = await buildSystemPrompt(projectId, activeOrganization?.id ?? "")
+  const context = readChatContext(body)
+  const packet = await loadChatPacket({
+    projectId,
+    organizationId: activeOrganization?.id ?? "",
+    ...context,
+  })
+  if (!packet) {
+    return c.json({ error: "Project not found" }, 404)
+  }
 
-  const result = await runCompletionForUser({
+  const model = typeof body.model === "string" ? body.model : undefined
+  const result = await replyInThread({
+    packet,
+    projectId,
     userId: user.id,
-    env: c.env,
-    system,
-    messages,
-    model: typeof body.model === "string" ? body.model : undefined,
+    userText,
+    allowCurrentChapter: body.allowCurrentChapter === true,
+    openChapterHtml: context.chapterHtml,
+    openChapterId: context.chapterId,
+    summarize: async (previous, folded) => {
+      const summarized = await runCompletionForUser({
+        userId: user.id,
+        env: c.env,
+        system: SUMMARY_SYSTEM,
+        messages: [{ role: "user", content: summaryRequest(previous, folded) }],
+        model,
+        maxTokens: CONVERSATION_SUMMARY_MAX_TOKENS,
+      })
+      if (isCompletionFailure(summarized)) {
+        return null
+      }
+      return summarized.message
+    },
+    complete: async (input) => {
+      const turn = await runCompletionForUser({
+        userId: user.id,
+        env: c.env,
+        system: input.system,
+        messages: input.messages,
+        tools: input.tools,
+        model,
+        maxTokens: input.maxTokens ?? CHAT_MAX_TOKENS,
+        disableThinking: true,
+      })
+      if (isCompletionFailure(turn)) {
+        return {
+          error: turn.error,
+          status: turn.status,
+          code: turn.code,
+          message: "",
+          toolCalls: [],
+        }
+      }
+      return {
+        message: turn.message,
+        toolCalls: turn.toolCalls,
+        model: turn.model,
+        provider: turn.provider,
+        truncated: turn.truncated,
+      }
+    },
   })
 
-  if (isCompletionFailure(result)) {
+  if ("error" in result) {
     return c.json(
-      { error: result.error, ...(result.code ? { code: result.code } : {}) },
+      {
+        error: result.error,
+        edits: result.edits,
+        ...(result.code ? { code: result.code } : {}),
+      },
       result.status
     )
   }
 
   return c.json(result)
+})
+
+aiRouter.post("/chat/decide", requireAuth, async (c: AppContext) => {
+  const user = c.get("user")
+  const activeOrganization = c.get("activeOrganization")
+  let body: {
+    allowCurrentChapter?: unknown
+    chapterHtml?: unknown
+    chapterId?: unknown
+    decisions?: unknown
+    model?: unknown
+    projectId?: unknown
+  }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400)
+  }
+  const projectId = typeof body.projectId === "string" ? body.projectId : ""
+  const decisions = readDecisions(body.decisions)
+  if (projectId.length === 0 || !decisions) {
+    return c.json({ error: "projectId and decisions are required" }, 400)
+  }
+  const packet = await loadChatPacket({
+    projectId,
+    organizationId: activeOrganization?.id ?? "",
+    previousChapterCount: 0,
+    summaryChapterIds: [],
+    chapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+  })
+  if (!packet) {
+    return c.json({ error: "Project not found" }, 404)
+  }
+  const model = typeof body.model === "string" ? body.model : undefined
+  const result = await resumeInThread({
+    allowCurrentChapter: body.allowCurrentChapter === true,
+    decisions,
+    openChapterHtml: readChapterHtml(body.chapterHtml),
+    openChapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+    packet,
+    projectId,
+    userId: user.id,
+    complete: async (input) => {
+      const turn = await runCompletionForUser({
+        userId: user.id,
+        env: c.env,
+        system: input.system,
+        messages: input.messages,
+        tools: input.tools,
+        model,
+        maxTokens: input.maxTokens ?? CHAT_MAX_TOKENS,
+        disableThinking: true,
+      })
+      if (isCompletionFailure(turn)) {
+        return {
+          error: turn.error,
+          status: turn.status,
+          code: turn.code,
+          message: "",
+          toolCalls: [],
+        }
+      }
+      return {
+        message: turn.message,
+        toolCalls: turn.toolCalls,
+        model: turn.model,
+        provider: turn.provider,
+        truncated: turn.truncated,
+      }
+    },
+  })
+  if ("error" in result) {
+    return c.json(
+      {
+        error: result.error,
+        edits: result.edits,
+        ...(result.code ? { code: result.code } : {}),
+      },
+      result.status
+    )
+  }
+  return c.json(result)
+})
+
+aiRouter.post("/chat/continue", requireAuth, async (c: AppContext) => {
+  const user = c.get("user")
+  const activeOrganization = c.get("activeOrganization")
+  let body: {
+    allowCurrentChapter?: unknown
+    chapterHtml?: unknown
+    chapterId?: unknown
+    model?: unknown
+    projectId?: unknown
+  }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400)
+  }
+  const projectId = typeof body.projectId === "string" ? body.projectId : ""
+  if (projectId.length === 0) {
+    return c.json({ error: "projectId is required" }, 400)
+  }
+  const packet = await loadChatPacket({
+    projectId,
+    organizationId: activeOrganization?.id ?? "",
+    previousChapterCount: 0,
+    summaryChapterIds: [],
+    chapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+  })
+  if (!packet) {
+    return c.json({ error: "Project not found" }, 404)
+  }
+  const model = typeof body.model === "string" ? body.model : undefined
+  const result = await resumeCutoffInThread({
+    allowCurrentChapter: body.allowCurrentChapter === true,
+    complete: async (input) => {
+      const turn = await runCompletionForUser({
+        userId: user.id,
+        env: c.env,
+        system: input.system,
+        messages: input.messages,
+        tools: input.tools,
+        model,
+        maxTokens: input.maxTokens ?? CHAT_MAX_TOKENS,
+        disableThinking: true,
+      })
+      if (isCompletionFailure(turn)) {
+        return {
+          error: turn.error,
+          status: turn.status,
+          code: turn.code,
+          message: "",
+          toolCalls: [],
+        }
+      }
+      return {
+        message: turn.message,
+        toolCalls: turn.toolCalls,
+        model: turn.model,
+        provider: turn.provider,
+        truncated: turn.truncated,
+      }
+    },
+    openChapterHtml: readChapterHtml(body.chapterHtml),
+    openChapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+    packet,
+    projectId,
+    userId: user.id,
+  })
+  if ("error" in result) {
+    return c.json(
+      {
+        error: result.error,
+        edits: result.edits,
+        ...(result.code ? { code: result.code } : {}),
+      },
+      result.status
+    )
+  }
+  return c.json(result)
+})
+
+aiRouter.post("/complete", requireAuth, async (c: AppContext) => {
+  const user = c.get("user")
+  let body: { model?: unknown; prefix?: unknown }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400)
+  }
+
+  const prefix = readCompletionPrefix(body.prefix)
+  if (prefix.length < MIN_COMPLETION_PREFIX) {
+    return c.json({ text: "" })
+  }
+
+  const result = await runCompletionForUser({
+    userId: user.id,
+    env: c.env,
+    system: COMPLETION_SYSTEM,
+    messages: [{ role: "user", content: prefix }],
+    disableThinking: true,
+    model: typeof body.model === "string" ? body.model : undefined,
+    maxTokens: AUTOCOMPLETE_MAX_TOKENS,
+  })
+  if (isCompletionFailure(result)) {
+    if (result.code === "no_provider") {
+      return c.json({ error: result.error, code: result.code }, result.status)
+    }
+    return c.json({ text: "" })
+  }
+  return c.json({ text: cleanContinuation(prefix, result.message) })
 })
 
 export type { ChatMessage, CompletionResult }

@@ -8,6 +8,7 @@
 import { type ApiClient, apiCall } from "./base"
 
 export interface Location {
+  chapterIds: string[]
   createdAt: Date
   description?: string
   id: string
@@ -22,6 +23,7 @@ export interface Location {
 }
 
 export interface CreateLocationData {
+  chapterIds?: string[]
   description?: string
   image?: string
   metadata?: string

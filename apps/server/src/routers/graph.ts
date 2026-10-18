@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, or } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "../db"
 import { chapter, graphConnection, graphNode, project, textBlock } from "../db/schema"
+import { CANVAS_MAX_TOKENS } from "../lib/output-budget"
 import {
   buildExpansionPrompt,
   EXPANSION_CHILD_SUBTYPE,
@@ -13,7 +14,12 @@ import {
 import { countWordsInHtml } from "../lib/word-count"
 import { requireAuth, verifyProjectAccess } from "../middleware/auth"
 import { isCompletionFailure, runCompletionForUser } from "./ai"
-import { getOrCreatePrimaryWork, listProjectChapters, syncProjectWordCount } from "./content"
+import {
+  ensureVolume,
+  getOrCreatePrimaryWork,
+  listProjectChapters,
+  syncProjectWordCount,
+} from "./content"
 
 interface Env {
   BETTER_AUTH_SECRET: string
@@ -917,6 +923,7 @@ app.openapi(
       env: c.env,
       system: GENERATION_SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],
+      maxTokens: CANVAS_MAX_TOKENS,
       model,
     })
 
@@ -1091,6 +1098,7 @@ app.openapi(
       env: c.env,
       system: EXPANSION_SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],
+      maxTokens: CANVAS_MAX_TOKENS,
       model,
     })
 
@@ -1260,12 +1268,14 @@ app.openapi(
       return c.json({ error: "Project not found" }, 404)
     }
 
+    const volumeId = await ensureVolume(workId)
     const existingChapters = await listProjectChapters(projectId)
     const nodeText = await loadNodeText(nodeId, PROMOTE_TEXT_LIMIT)
     const content = textToChapterHtml(nodeText)
 
     const chapterId = crypto.randomUUID()
     const now = new Date()
+    const orderInVolume = existingChapters.filter((item) => item.volumeId === volumeId).length + 1
 
     await db.insert(chapter).values({
       id: chapterId,
@@ -1273,9 +1283,10 @@ app.openapi(
       content,
       summary: node.description ?? null,
       wordCount: countWordsInHtml(content),
-      order: existingChapters.length + 1,
+      order: orderInVolume,
       status: "draft",
       workId,
+      volumeId,
       createdAt: now,
       updatedAt: now,
     })

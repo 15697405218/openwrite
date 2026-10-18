@@ -98,6 +98,19 @@ describe("custom OpenAI-compatible providers", () => {
     })
   })
 
+  it("returns the saved model on the provider list", async () => {
+    const response = await request("/api/ai-providers")
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      providers: expect.arrayContaining([
+        expect.objectContaining({
+          providerConfig: expect.objectContaining({ defaultModel: "local-model" }),
+        }),
+      ]),
+    })
+  })
+
   it("trims the stored base URL", async () => {
     const saved = await testDb.select().from(aiProvider).where(eq(aiProvider.userId, USER_ID)).get()
     expect(JSON.parse(saved?.providerConfig ?? "{}").apiUrl).toBe("http://localhost:1234/v1")

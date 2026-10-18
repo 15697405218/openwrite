@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { fill, useLocale } from "@/i18n/locale"
 import { api } from "@/lib/api"
+import { toastCodexSummary } from "@/lib/codex-summary"
 
 export const Route = createFileRoute("/projects/$projectId/codex/$type")({
   component: CodexTypeInterface,
@@ -27,6 +28,8 @@ export const Route = createFileRoute("/projects/$projectId/codex/$type")({
 // A codex entry, normalized across the four underlying entities so a single
 // view can render any of them.
 interface CodexEntry {
+  chapterIds: string[]
+  characterIds: string[]
   description: string
   id: string
   label: string
@@ -96,9 +99,21 @@ function getBinding(type: string, projectId: string): CodexBinding | null {
             id: c.id,
             label: c.name,
             description: c.description ?? "",
+            chapterIds: c.chapterIds ?? [],
+            characterIds: [],
           })),
-        create: (values) => api.characters.create(projectId, values),
-        update: (id, values) => api.characters.update(projectId, id, values),
+        create: (values) =>
+          api.characters.create(projectId, {
+            name: values.name,
+            description: values.description,
+            chapterIds: values.chapterIds,
+          }),
+        update: (id, values) =>
+          api.characters.update(projectId, id, {
+            name: values.name,
+            description: values.description,
+            chapterIds: values.chapterIds,
+          }),
         remove: (id) => api.characters.delete(projectId, id),
       }
     case "locations":
@@ -108,9 +123,21 @@ function getBinding(type: string, projectId: string): CodexBinding | null {
             id: l.id,
             label: l.name,
             description: l.description ?? "",
+            chapterIds: l.chapterIds,
+            characterIds: [],
           })),
-        create: (values) => api.locations.create(projectId, values),
-        update: (id, values) => api.locations.update(projectId, id, values),
+        create: (values) =>
+          api.locations.create(projectId, {
+            name: values.name,
+            description: values.description,
+            chapterIds: values.chapterIds,
+          }),
+        update: (id, values) =>
+          api.locations.update(projectId, id, {
+            name: values.name,
+            description: values.description,
+            chapterIds: values.chapterIds,
+          }),
         remove: (id) => api.locations.delete(projectId, id),
       }
     case "lore":
@@ -120,6 +147,8 @@ function getBinding(type: string, projectId: string): CodexBinding | null {
             id: l.id,
             label: l.name,
             description: l.description ?? "",
+            chapterIds: [],
+            characterIds: [],
           })),
         create: (values) => api.lore.create(projectId, values),
         update: (id, values) => api.lore.update(projectId, id, values),
@@ -132,17 +161,24 @@ function getBinding(type: string, projectId: string): CodexBinding | null {
             id: p.id,
             label: p.title,
             description: p.description ?? "",
+            chapterIds: p.chapterIds ?? [],
+            characterIds: p.characterIds ?? [],
           })),
         create: (values, currentCount) =>
           api.plot.create(projectId, {
             title: values.name,
             description: values.description,
             order: currentCount + 1,
+            chapterIds: values.chapterIds,
+            characterIds: values.characterIds,
           }),
         update: (id, values) =>
           api.plot.update(projectId, id, {
             title: values.name,
             description: values.description,
+            chapterIds: values.chapterIds,
+            characterIds: values.characterIds,
+            chapterId: values.chapterIds.at(0) ?? null,
           }),
         remove: (id) => api.plot.delete(projectId, id),
       }
@@ -163,6 +199,18 @@ function CodexTypeInterface() {
       : m.codex.pages.fallback
   const IconComponent = config.icon
   const binding = getBinding(type, projectId)
+  const linkEntries = type === "characters" || type === "locations" || type === "plot"
+
+  const { data: linkChapters = [] } = useQuery({
+    queryKey: ["chapters", projectId],
+    queryFn: () => api.chapters.list(projectId),
+    enabled: linkEntries,
+  })
+  const { data: linkCharacters = [] } = useQuery({
+    queryKey: ["characters", projectId],
+    queryFn: () => api.characters.list(projectId),
+    enabled: type === "plot",
+  })
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<CodexEntry | null>(null)
@@ -185,9 +233,10 @@ function CodexTypeInterface() {
       }
       return binding.create(values, entries.length)
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidate()
       toast.success(fill(m.codex.added, { noun: page.noun }))
+      toastCodexSummary(result, m)
       setDialogOpen(false)
     },
     onError: (error) =>
@@ -201,9 +250,10 @@ function CodexTypeInterface() {
       }
       return binding.update(id, values)
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidate()
       toast.success(fill(m.codex.updatedNoun, { noun: page.noun }))
+      toastCodexSummary(result, m)
       setEditingEntry(null)
     },
     onError: (error) =>
@@ -334,6 +384,24 @@ function CodexTypeInterface() {
           initialName={editingEntry?.label ?? ""}
           isSaving={createMutation.isPending || updateMutation.isPending}
           key={editingEntry?.id ?? "new"}
+          links={
+            linkEntries
+              ? {
+                  chapters: linkChapters.map((chapter) => ({
+                    id: chapter.id,
+                    title: chapter.title,
+                  })),
+                  characters: linkCharacters.map((character) => ({
+                    id: character.id,
+                    name: character.name,
+                  })),
+                  chapterHint: type === "locations" ? m.codex.bindLocationChaptersHint : undefined,
+                  initialChapterIds: editingEntry?.chapterIds ?? [],
+                  initialCharacterIds: editingEntry?.characterIds ?? [],
+                  showCharacters: type === "plot",
+                }
+              : undefined
+          }
           mode={editingEntry ? "edit" : "create"}
           nameLabel={config.nameLabel}
           nounLabel={page.noun}

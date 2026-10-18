@@ -9,6 +9,8 @@ import { type ApiClient, apiCall } from "./base"
 
 export interface PlotThread {
   chapterId?: string
+  chapterIds: string[]
+  characterIds: string[]
   createdAt: Date
   description?: string
   id: string
@@ -22,7 +24,9 @@ export interface PlotThread {
 }
 
 export interface CreatePlotData {
-  chapterId?: string
+  chapterId?: string | null
+  chapterIds?: string[]
+  characterIds?: string[]
   description?: string
   order: number
   status?: string

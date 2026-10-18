@@ -12,10 +12,12 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { BindingChecklist } from "@/components/binding-checklist"
 import { CharacterDialog } from "@/components/character-dialog"
 import { DeleteCharacterDialog } from "@/components/delete-character-dialog"
 import { DeleteLocationDialog } from "@/components/delete-location-dialog"
 import { LocationDialog } from "@/components/location-dialog"
+import { PlotDialog } from "@/components/plot-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,7 +35,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { fill, useLocale } from "@/i18n/locale"
 
-import { api, type Character, type Location } from "@/lib/api"
+import { api, type Character, type Location, type PlotThread, type StoryNote } from "@/lib/api"
+import { toastCodexSummary } from "@/lib/codex-summary"
 
 interface CodexModalProps {
   initialEntry?: string | null
@@ -44,6 +47,40 @@ interface CodexModalProps {
 }
 
 type CodexEntry = Character | { id: string; name: string; description?: string }
+
+function CodexChapterBinding({
+  chapters,
+  characterHint,
+  locationHint,
+  onChange,
+  selectedIds,
+  selectedType,
+}: {
+  chapters: { id: string; title: string }[]
+  characterHint: string
+  locationHint: string
+  onChange: (ids: string[]) => void
+  selectedIds: string[]
+  selectedType: string
+}) {
+  const { messages: m } = useLocale()
+  if (selectedType !== "characters" && selectedType !== "locations") {
+    return null
+  }
+
+  return (
+    <BindingChecklist
+      emptyLabel={m.codex.noChaptersToBind}
+      group={`modal-${selectedType}-chapters`}
+      hint={selectedType === "locations" ? locationHint : characterHint}
+      label={m.codex.bindChapters}
+      onChange={onChange}
+      options={chapters.map((chapter) => ({ id: chapter.id, label: chapter.title }))}
+      searchPlaceholder={m.codex.searchBindings}
+      selectedIds={selectedIds}
+    />
+  )
+}
 
 export default function CodexModal({
   isOpen,
@@ -60,10 +97,16 @@ export default function CodexModal({
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState("")
   const [editDescription, setEditDescription] = useState("")
+  const [createName, setCreateName] = useState("")
+  const [createDescription, setCreateDescription] = useState("")
   const [deleteCharacterDialogOpen, setDeleteCharacterDialogOpen] = useState(false)
   const [deleteLocationDialogOpen, setDeleteLocationDialogOpen] = useState(false)
   const [createCharacterDialogOpen, setCreateCharacterDialogOpen] = useState(false)
   const [createLocationDialogOpen, setCreateLocationDialogOpen] = useState(false)
+  const [plotDialogOpen, setPlotDialogOpen] = useState(false)
+  const [plotDialogMode, setPlotDialogMode] = useState<"create" | "edit">("create")
+  const [editingPlot, setEditingPlot] = useState<PlotThread | null>(null)
+  const [editChapterIds, setEditChapterIds] = useState<string[]>([])
 
   const queryClient = useQueryClient()
 
@@ -73,7 +116,7 @@ export default function CodexModal({
       setSelectedType(initialType || "characters")
       setSelectedEntry(initialEntry)
       setSearchTerm("")
-      setIsCreating(false)
+      setIsCreating(initialType === "notes" && !initialEntry)
       setIsEditing(false)
       setCreateCharacterDialogOpen(false)
       setCreateLocationDialogOpen(false)
@@ -98,6 +141,23 @@ export default function CodexModal({
     },
   })
 
+  const { data: notes = [] } = useQuery({
+    queryKey: ["notes", projectId],
+    queryFn: () => api.notes.list(projectId),
+  })
+
+  const { data: chapters = [] } = useQuery({
+    queryKey: ["chapters", projectId],
+    queryFn: () => api.chapters.list(projectId),
+    enabled: isOpen,
+  })
+
+  const { data: plotThreads = [] } = useQuery({
+    queryKey: ["plot", projectId],
+    queryFn: () => api.plot.list(projectId),
+    enabled: isOpen,
+  })
+
   // Update mutations
   const updateCharacterMutation = useMutation({
     mutationFn: async ({
@@ -105,14 +165,15 @@ export default function CodexModal({
       data,
     }: {
       id: string
-      data: { name: string; description: string }
+      data: { chapterIds?: string[]; description: string; name: string }
     }) => {
       const result = await api.characters.update(projectId, id, data)
       return result
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
       toast.success(m.codex.characterUpdated)
+      toastCodexSummary(result, m)
       setIsEditing(false)
     },
     onError: (error) => {
@@ -126,14 +187,15 @@ export default function CodexModal({
       data,
     }: {
       id: string
-      data: { name: string; description: string }
+      data: { chapterIds?: string[]; description: string; name: string }
     }) => {
       const result = await api.locations.update(projectId, id, data)
       return result
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
       toast.success(m.codex.locationUpdated)
+      toastCodexSummary(result, m)
       setIsEditing(false)
     },
     onError: (error) => {
@@ -141,43 +203,116 @@ export default function CodexModal({
     },
   })
 
-  // Mock data for lore entries and plot threads - will be replaced with real API calls later
+  const createNoteMutation = useMutation({
+    mutationFn: async (data: { description: string; name: string }) =>
+      await api.notes.create(projectId, data),
+    onSuccess: (_result, data) => {
+      queryClient.invalidateQueries({ queryKey: ["notes", projectId] })
+      toast.success(m.codex.noteCreated)
+      setIsCreating(false)
+      setSelectedEntry(data.name)
+      setCreateName("")
+      setCreateDescription("")
+    },
+    onError: (error) => {
+      toast.error(fill(m.codex.noteSaveFailed, { message: error.message }))
+    },
+  })
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { description: string; name: string } }) =>
+      await api.notes.update(projectId, id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes", projectId] })
+      toast.success(m.codex.noteUpdated)
+      setIsEditing(false)
+    },
+    onError: (error) => {
+      toast.error(fill(m.codex.noteSaveFailed, { message: error.message }))
+    },
+  })
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (id: string) => await api.notes.delete(projectId, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes", projectId] })
+      toast.success(m.codex.noteDeleted)
+      setSelectedEntry(null)
+      setIsEditing(false)
+    },
+    onError: (error) => {
+      toast.error(fill(m.codex.noteDeleteFailed, { message: error.message }))
+    },
+  })
+
+  const savePlotMutation = useMutation({
+    mutationFn: async (values: {
+      characterIds: string[]
+      chapterIds: string[]
+      description: string
+      order: number
+      title: string
+    }) => {
+      if (plotDialogMode === "edit" && editingPlot) {
+        return await api.plot.update(projectId, editingPlot.id, {
+          ...values,
+          chapterId: values.chapterIds.at(0) ?? null,
+          status: editingPlot.status,
+          type: editingPlot.type,
+        })
+      }
+      return await api.plot.create(projectId, values)
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["plot", projectId] })
+      toast.success(plotDialogMode === "edit" ? m.codex.plotUpdated : m.codex.plotCreated)
+      toastCodexSummary(result, m)
+      setPlotDialogOpen(false)
+      setEditingPlot(null)
+    },
+    onError: (error) => {
+      toast.error(fill(m.codex.plotSaveFailed, { message: error.message }))
+    },
+  })
+
+  const deletePlotMutation = useMutation({
+    mutationFn: async (id: string) => await api.plot.delete(projectId, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plot", projectId] })
+      toast.success(m.codex.plotDeleted)
+      setSelectedEntry(null)
+      setIsEditing(false)
+    },
+    onError: (error) => {
+      toast.error(fill(m.codex.plotDeleteFailed, { message: error.message }))
+    },
+  })
+
+  // Lore entries in this modal are still filled in elsewhere
   const loreEntries: Array<{ id: string; name: string; description: string }> = []
-  const plotThreads: Array<{ id: string; name: string; description: string }> = []
-  const notes: Array<{ id: string; name: string; description: string }> = []
 
   const getTypeConfig = (typeParam: string) => {
-    const blank = m.codex.noDescription
     switch (typeParam) {
       case "characters":
         return {
           title: m.codex.pages.characters.title,
           description: m.codex.pages.characters.description,
           icon: Users,
-          entries: characters.map((char) => ({
-            ...char,
-            description: char.description || blank,
-          })),
+          entries: characters,
         }
       case "locations":
         return {
           title: m.codex.pages.locations.title,
           description: m.codex.pages.locations.description,
           icon: MapPin,
-          entries: locations.map((location) => ({
-            ...location,
-            description: location.description || blank,
-          })),
+          entries: locations,
         }
       case "lore":
         return {
           title: m.codex.pages.lore.title,
           description: m.codex.pages.lore.description,
           icon: Scroll,
-          entries: loreEntries.map((lore) => ({
-            ...lore,
-            description: lore.description || blank,
-          })),
+          entries: loreEntries,
         }
       case "plot":
         return {
@@ -185,8 +320,9 @@ export default function CodexModal({
           description: m.codex.pages.plot.description,
           icon: FileText,
           entries: plotThreads.map((plot) => ({
-            ...plot,
-            description: plot.description || blank,
+            id: plot.id,
+            name: plot.title,
+            description: plot.description,
           })),
         }
       case "notes":
@@ -194,9 +330,10 @@ export default function CodexModal({
           title: m.sidebar.notes,
           description: m.codex.notesHint,
           icon: Zap,
-          entries: notes.map((note) => ({
-            ...note,
-            description: note.description || blank,
+          entries: notes.map((note: StoryNote) => ({
+            id: note.id,
+            name: note.name,
+            description: note.description,
           })),
         }
       default:
@@ -206,6 +343,74 @@ export default function CodexModal({
           icon: FileText,
           entries: [],
         }
+    }
+  }
+
+  const beginEntryEdit = () => {
+    if (!selectedEntryData) {
+      return
+    }
+    if (selectedType === "plot" && selectedEntryData.id) {
+      const plot = plotThreads.find((item) => item.id === selectedEntryData.id)
+      setEditingPlot(plot ?? null)
+      setPlotDialogMode("edit")
+      setPlotDialogOpen(true)
+      return
+    }
+    setEditName(selectedEntryData.name)
+    setEditDescription(selectedEntryData.description || "")
+    const character = characters.find((item) => item.id === selectedEntryData.id)
+    const place = locations.find((item) => item.id === selectedEntryData.id)
+    setEditChapterIds(character?.chapterIds ?? place?.chapterIds ?? [])
+    setIsEditing(true)
+  }
+
+  const saveEditedEntry = () => {
+    if (!selectedEntryData?.id) {
+      return
+    }
+    const updateData = {
+      name: editName.trim(),
+      description: editDescription.trim(),
+    }
+    if (selectedType === "characters") {
+      updateCharacterMutation.mutate({
+        id: selectedEntryData.id,
+        data: { ...updateData, chapterIds: editChapterIds },
+      })
+      return
+    }
+    if (selectedType === "locations") {
+      updateLocationMutation.mutate({
+        id: selectedEntryData.id,
+        data: { ...updateData, chapterIds: editChapterIds },
+      })
+      return
+    }
+    if (selectedType === "notes") {
+      updateNoteMutation.mutate({ id: selectedEntryData.id, data: updateData })
+      setSelectedEntry(updateData.name)
+    }
+  }
+
+  const deleteEditedEntry = () => {
+    if (selectedType === "characters") {
+      setDeleteCharacterDialogOpen(true)
+      return
+    }
+    if (selectedType === "locations") {
+      setDeleteLocationDialogOpen(true)
+      return
+    }
+    if (!selectedEntryData?.id) {
+      return
+    }
+    if (selectedType === "notes") {
+      deleteNoteMutation.mutate(selectedEntryData.id)
+      return
+    }
+    if (selectedType === "plot") {
+      deletePlotMutation.mutate(selectedEntryData.id)
     }
   }
 
@@ -227,8 +432,12 @@ export default function CodexModal({
       setCreateCharacterDialogOpen(true)
     } else if (selectedType === "locations") {
       setCreateLocationDialogOpen(true)
+    } else if (selectedType === "plot") {
+      setEditingPlot(null)
+      setPlotDialogMode("create")
+      setPlotDialogOpen(true)
     }
-    // For other types (lore, plot, notes), keep existing behavior for now
+    // For other types (lore, notes), keep existing behavior for now
     else {
       setSelectedEntry(null)
       setIsCreating(true)
@@ -301,6 +510,55 @@ export default function CodexModal({
 
   // Helper function to render the right panel content
   const renderRightPanel = () => {
+    if (isCreating && selectedType === "notes") {
+      return (
+        <div className="flex h-full flex-col">
+          <div className="border-b p-4">
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5" />
+              <h3 className="font-semibold">
+                {fill(m.codex.createNamed, { name: m.sidebar.notes })}
+              </h3>
+            </div>
+          </div>
+          <div className="flex-1 space-y-4 overflow-y-auto p-6">
+            <div className="space-y-2">
+              <Label htmlFor="note-name">{m.codex.nameLabel}</Label>
+              <Input
+                id="note-name"
+                onChange={(event) => setCreateName(event.target.value)}
+                placeholder={m.codex.namePlaceholder}
+                value={createName}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="note-body">{m.projects.description}</Label>
+              <Textarea
+                id="note-body"
+                onChange={(event) => setCreateDescription(event.target.value)}
+                placeholder={m.codex.notesHint}
+                rows={6}
+                value={createDescription}
+              />
+            </div>
+            <Button
+              disabled={createNoteMutation.isPending || createName.trim().length === 0}
+              onClick={() =>
+                createNoteMutation.mutate({
+                  name: createName.trim(),
+                  description: createDescription.trim(),
+                })
+              }
+              type="button"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {m.common.save}
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
     if (isCreating) {
       return (
         <div className="flex h-full flex-col">
@@ -344,7 +602,7 @@ export default function CodexModal({
               <TabsList>
                 <TabsTrigger value="overview">{m.canvas.overview}</TabsTrigger>
                 <TabsTrigger value="details">{m.codex.details}</TabsTrigger>
-                <TabsTrigger value="connections">{m.canvas.connections}</TabsTrigger>
+                <TabsTrigger value="connections">{m.canvas.links}</TabsTrigger>
               </TabsList>
 
               <TabsContent className="mt-6" value="overview">
@@ -373,54 +631,36 @@ export default function CodexModal({
                         />
                       </div>
 
+                      <CodexChapterBinding
+                        chapters={chapters}
+                        characterHint={m.codex.bindChaptersHint}
+                        locationHint={m.codex.bindLocationChaptersHint}
+                        onChange={setEditChapterIds}
+                        selectedIds={editChapterIds}
+                        selectedType={selectedType}
+                      />
+
                       <div className="flex gap-2 pt-4">
                         <Button
                           disabled={
-                            updateCharacterMutation.isPending || updateLocationMutation.isPending
+                            updateCharacterMutation.isPending ||
+                            updateLocationMutation.isPending ||
+                            updateNoteMutation.isPending
                           }
-                          onClick={() => {
-                            if (!selectedEntryData?.id) {
-                              return
-                            }
-
-                            const updateData = {
-                              name: editName.trim(),
-                              description: editDescription.trim(),
-                            }
-
-                            if (selectedType === "characters") {
-                              updateCharacterMutation.mutate({
-                                id: selectedEntryData.id,
-                                data: updateData,
-                              })
-                            } else if (selectedType === "locations") {
-                              updateLocationMutation.mutate({
-                                id: selectedEntryData.id,
-                                data: updateData,
-                              })
-                            }
-                          }}
+                          onClick={saveEditedEntry}
                           size="sm"
                         >
                           <Save className="mr-2 h-4 w-4" />
-                          {updateCharacterMutation.isPending || updateLocationMutation.isPending
+                          {updateCharacterMutation.isPending ||
+                          updateLocationMutation.isPending ||
+                          updateNoteMutation.isPending
                             ? m.auth.updating
                             : m.common.save}
                         </Button>
                         <Button onClick={() => setIsEditing(false)} size="sm" variant="outline">
                           {m.common.cancel}
                         </Button>
-                        <Button
-                          onClick={() => {
-                            if (selectedType === "characters") {
-                              setDeleteCharacterDialogOpen(true)
-                            } else if (selectedType === "locations") {
-                              setDeleteLocationDialogOpen(true)
-                            }
-                          }}
-                          size="sm"
-                          variant="destructive"
-                        >
+                        <Button onClick={deleteEditedEntry} size="sm" variant="destructive">
                           <Trash2 className="mr-2 h-4 w-4" />
                           {m.common.delete}
                         </Button>
@@ -432,15 +672,7 @@ export default function CodexModal({
                       <div>
                         <div className="mb-2 flex items-center justify-between">
                           <h4 className="font-medium">{m.codex.nameLabel}</h4>
-                          <Button
-                            onClick={() => {
-                              setEditName(selectedEntryData.name)
-                              setEditDescription(selectedEntryData.description || "")
-                              setIsEditing(true)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
+                          <Button onClick={beginEntryEdit} size="sm" variant="outline">
                             {m.common.edit}
                           </Button>
                         </div>
@@ -466,7 +698,7 @@ export default function CodexModal({
                     <div>
                       <h4 className="mb-2 font-medium">{m.codex.locationDetails}</h4>
                       <p className="text-muted-foreground text-sm leading-relaxed">
-                        {selectedEntryData.description}
+                        {selectedEntryData.description || m.codex.noDescription}
                       </p>
                     </div>
                   )}
@@ -627,7 +859,7 @@ export default function CodexModal({
                           </div>
                         </div>
                         <CardDescription className="line-clamp-2 text-xs">
-                          {entry.description}
+                          {entry.description?.trim() ? entry.description : m.codex.noDescription}
                         </CardDescription>
                       </CardHeader>
                     </Card>
@@ -705,6 +937,17 @@ export default function CodexModal({
         onOpenChange={setCreateLocationDialogOpen}
         open={createLocationDialogOpen}
         projectId={projectId}
+      />
+
+      <PlotDialog
+        mode={plotDialogMode}
+        nextOrder={plotThreads.length + 1}
+        onOpenChange={setPlotDialogOpen}
+        onSubmit={(values) => savePlotMutation.mutate(values)}
+        open={plotDialogOpen}
+        plot={editingPlot}
+        projectId={projectId}
+        saving={savePlotMutation.isPending}
       />
     </>
   )

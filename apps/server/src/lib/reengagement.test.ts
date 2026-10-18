@@ -8,7 +8,7 @@ vi.mock("../db", async () => {
   return { db: mod.testDb }
 })
 
-import { chapter, organization, project, user, work } from "../db/schema"
+import { chapter, organization, project, user, volume, work } from "../db/schema"
 import { applyMigrations, testDb } from "../test/test-db"
 import {
   DRAFT_NUDGE_EMAIL_TYPE,
@@ -66,6 +66,14 @@ async function seedProjectWithChapter(
     createdAt: NOW,
     updatedAt: NOW,
   })
+  await testDb.insert(volume).values({
+    id: `${ownerId}-volume`,
+    workId,
+    title: "Volume 1",
+    order: 1,
+    createdAt: NOW,
+    updatedAt: NOW,
+  })
   await testDb.insert(chapter).values({
     id: `${ownerId}-chapter`,
     title: "Chapter 1",
@@ -74,6 +82,7 @@ async function seedProjectWithChapter(
     order: 1,
     status: "draft",
     workId,
+    volumeId: `${ownerId}-volume`,
     createdAt: NOW,
     updatedAt: NOW,
   })

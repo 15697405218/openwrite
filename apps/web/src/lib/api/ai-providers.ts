@@ -29,14 +29,14 @@ export interface AiProvider {
   keyLabel: string | null
   lastUsedAt: string | null
   provider: ProviderId
+  providerConfig: Record<string, unknown> | null
+  supportedModels: string[] | null
   usageLimit: number | null
   usageRemaining: number | null
 }
 
 export interface AiProviderDetails extends AiProvider {
-  providerConfig: Record<string, unknown> | null
   providerUserId: string | null
-  supportedModels: string[] | null
   updatedAt: string
 }
 

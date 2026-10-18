@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm"
-import { check, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import {
+  check,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core"
 import { user } from "./auth"
 import { organization } from "./organization"
 
@@ -121,6 +129,24 @@ export const work = sqliteTable(
   })
 )
 
+// Volume table - groups chapters inside one book so a long manuscript stays navigable
+export const volume = sqliteTable(
+  "volume",
+  {
+    id: text("id").primaryKey(),
+    workId: text("work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    order: integer("order").notNull().default(1),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    workIdIdx: index("volume_work_id_idx").on(table.workId),
+  })
+)
+
 // Chapter table - organizing work content
 export const chapter = sqliteTable(
   "chapter",
@@ -130,13 +156,16 @@ export const chapter = sqliteTable(
     content: text("content"), // Markdown/rich text content
     summary: text("summary"), // Brief chapter summary
     wordCount: integer("word_count").default(0),
-    order: integer("order").notNull(), // Chapter order within the work
+    order: integer("order").notNull(), // Chapter order within its volume
     status: text("status", { enum: projectStatusEnum }).notNull().default("draft"),
 
     // Relationships
     workId: text("work_id")
       .notNull()
       .references(() => work.id, { onDelete: "cascade" }),
+    volumeId: text("volume_id")
+      .notNull()
+      .references(() => volume.id, { onDelete: "cascade" }),
 
     // Metadata
     notes: text("notes"), // Author notes for this chapter
@@ -147,6 +176,7 @@ export const chapter = sqliteTable(
   },
   (table) => ({
     workIdIdx: index("chapter_work_id_idx").on(table.workId),
+    volumeIdIdx: index("chapter_volume_id_idx").on(table.volumeId),
   })
 )
 
@@ -157,6 +187,7 @@ export const character = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
+    summary: text("summary"),
     // role field removed - users can describe character roles freely in description
 
     // Simplified character - just name, description, and core metadata
@@ -186,6 +217,23 @@ export const character = sqliteTable(
   })
 )
 
+// Optional chapter ↔ character links. Empty means the chat does not attach the character.
+export const chapterCharacter = sqliteTable(
+  "chapter_character",
+  {
+    chapterId: text("chapter_id")
+      .notNull()
+      .references(() => chapter.id, { onDelete: "cascade" }),
+    characterId: text("character_id")
+      .notNull()
+      .references(() => character.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.chapterId, table.characterId] }),
+    characterIdIdx: index("chapter_character_character_id_idx").on(table.characterId),
+  })
+)
+
 // Location/Setting table - world-building for projects and works
 export const location = sqliteTable(
   "location",
@@ -193,6 +241,7 @@ export const location = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
+    summary: text("summary"),
     // type field removed - users can describe location types freely in description
 
     // Relationships - can be shared across project or specific to a work
@@ -221,6 +270,23 @@ export const location = sqliteTable(
   })
 )
 
+// Optional chapter ↔ location links. Empty means the chat does not attach the location.
+export const chapterLocation = sqliteTable(
+  "chapter_location",
+  {
+    chapterId: text("chapter_id")
+      .notNull()
+      .references(() => chapter.id, { onDelete: "cascade" }),
+    locationId: text("location_id")
+      .notNull()
+      .references(() => location.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.chapterId, table.locationId] }),
+    locationIdIdx: index("chapter_location_location_id_idx").on(table.locationId),
+  })
+)
+
 // Plot point/Story beat table - story structure management
 export const plotPoint = sqliteTable(
   "plot_point",
@@ -228,6 +294,7 @@ export const plotPoint = sqliteTable(
     id: text("id").primaryKey(),
     title: text("title").notNull(),
     description: text("description"),
+    summary: text("summary"),
     type: text("type", { enum: plotPointTypeEnum }),
     order: integer("order").notNull(), // Order in the story structure
 
@@ -254,6 +321,40 @@ export const plotPoint = sqliteTable(
   })
 )
 
+// Optional plot-thread links. A thread is sent only when the open chapter, or one of
+// that chapter's characters, is linked here.
+export const plotPointChapter = sqliteTable(
+  "plot_point_chapter",
+  {
+    plotPointId: text("plot_point_id")
+      .notNull()
+      .references(() => plotPoint.id, { onDelete: "cascade" }),
+    chapterId: text("chapter_id")
+      .notNull()
+      .references(() => chapter.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.plotPointId, table.chapterId] }),
+    chapterIdIdx: index("plot_point_chapter_chapter_id_idx").on(table.chapterId),
+  })
+)
+
+export const plotPointCharacter = sqliteTable(
+  "plot_point_character",
+  {
+    plotPointId: text("plot_point_id")
+      .notNull()
+      .references(() => plotPoint.id, { onDelete: "cascade" }),
+    characterId: text("character_id")
+      .notNull()
+      .references(() => character.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.plotPointId, table.characterId] }),
+    characterIdIdx: index("plot_point_character_character_id_idx").on(table.characterId),
+  })
+)
+
 // Lore/World-building table - knowledge base for story worlds
 export const lore = sqliteTable(
   "lore",
@@ -261,6 +362,7 @@ export const lore = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
+    summary: text("summary"),
     type: text("type", { enum: loreTypeEnum }),
 
     // Relationships - can be shared across project or specific to a work
@@ -279,6 +381,24 @@ export const lore = sqliteTable(
     loreAssociation: check("lore_association", sql`(project_id IS NULL) IS NOT (work_id IS NULL)`),
     projectIdIdx: index("lore_project_id_idx").on(table.projectId),
     workIdIdx: index("lore_work_id_idx").on(table.workId),
+  })
+)
+
+// Notes kept with the book itself, not a separate store
+export const note = sqliteTable(
+  "note",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    projectIdIdx: index("note_project_id_idx").on(table.projectId),
   })
 )
 
@@ -337,5 +457,94 @@ export const writingSession = sqliteTable(
   (table) => ({
     projectIdIdx: index("writing_session_project_id_idx").on(table.projectId),
     userIdIdx: index("writing_session_user_id_idx").on(table.userId),
+  })
+)
+
+// One writing chat per book per user. Older turns fold into summary.
+export const chatThread = sqliteTable(
+  "chat_thread",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    summary: text("summary"),
+    summarizedThroughId: text("summarized_through_id"),
+    contextFingerprint: text("context_fingerprint"),
+    pending: text("pending"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    projectUserUnique: uniqueIndex("chat_thread_project_user_unique").on(
+      table.projectId,
+      table.userId
+    ),
+  })
+)
+
+export const chatMessage = sqliteTable(
+  "chat_message",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => chatThread.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["user", "assistant", "context"] }).notNull(),
+    content: text("content").notNull(),
+    position: integer("position").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    threadPositionIdx: index("chat_message_thread_position_idx").on(table.threadId, table.position),
+  })
+)
+
+// One row per applied write tool call. A resumed graph skips calls already stored here.
+export const chatToolReceipt = sqliteTable("chat_tool_receipt", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id")
+    .notNull()
+    .references(() => chatThread.id, { onDelete: "cascade" }),
+  result: text("result").notNull(),
+})
+
+// LangGraph checkpoint rows. The saver talks to D1 through the same Drizzle client as the app.
+export const langgraphCheckpoint = sqliteTable(
+  "langgraph_checkpoint",
+  {
+    threadId: text("thread_id").notNull(),
+    checkpointNs: text("checkpoint_ns").notNull().default(""),
+    checkpointId: text("checkpoint_id").notNull(),
+    parentId: text("parent_id"),
+    checkpoint: text("checkpoint").notNull(),
+    metadata: text("metadata").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      columns: [table.threadId, table.checkpointNs, table.checkpointId],
+    }),
+  })
+)
+
+export const langgraphWrite = sqliteTable(
+  "langgraph_write",
+  {
+    threadId: text("thread_id").notNull(),
+    checkpointNs: text("checkpoint_ns").notNull().default(""),
+    checkpointId: text("checkpoint_id").notNull(),
+    taskId: text("task_id").notNull(),
+    idx: integer("idx").notNull(),
+    channel: text("channel").notNull(),
+    value: text("value").notNull(),
+    taskPath: text("task_path").notNull().default(""),
+  },
+  (table) => ({
+    pk: primaryKey({
+      columns: [table.threadId, table.checkpointNs, table.checkpointId, table.taskId, table.idx],
+    }),
   })
 )

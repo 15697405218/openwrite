@@ -105,6 +105,39 @@ function buildProviderConfig(
   return combinedConfig
 }
 
+function parseStoredJson(value: string | null): unknown {
+  if (!value) {
+    return null
+  }
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function storedModels(value: string | null): string[] | null {
+  const parsed = parseStoredJson(value)
+  if (!Array.isArray(parsed)) {
+    return null
+  }
+  const models: string[] = []
+  for (const item of parsed) {
+    if (typeof item === "string" && item.trim().length > 0) {
+      models.push(item)
+    }
+  }
+  return models
+}
+
+function storedConfig(value: string | null): Record<string, unknown> | null {
+  const parsed = parseStoredJson(value)
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null
+  }
+  return parsed as Record<string, unknown>
+}
+
 function serializeProviderConfig(config: Record<string, unknown>): string | null {
   return Object.keys(config).length > 0 ? JSON.stringify(config) : null
 }
@@ -140,6 +173,8 @@ aiProvidersRouter.get("/", async (c: Context<{ Bindings: Env; Variables: Variabl
       currentUsage: aiProvider.currentUsage,
       createdAt: aiProvider.createdAt,
       lastUsedAt: aiProvider.lastUsedAt,
+      supportedModels: aiProvider.supportedModels,
+      providerConfig: aiProvider.providerConfig,
     })
     .from(aiProvider)
     .where(eq(aiProvider.userId, user.id))
@@ -150,6 +185,8 @@ aiProvidersRouter.get("/", async (c: Context<{ Bindings: Env; Variables: Variabl
       ...p,
       createdAt: p.createdAt.toISOString(),
       lastUsedAt: p.lastUsedAt?.toISOString() || null,
+      supportedModels: storedModels(p.supportedModels),
+      providerConfig: storedConfig(p.providerConfig),
     })),
   })
 })

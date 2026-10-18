@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
+import { BindingChecklist } from "@/components/binding-checklist"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,10 +26,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { fill, useLocale } from "@/i18n/locale"
 import { api, type Location } from "@/lib/api"
+import { toastCodexSummary } from "@/lib/codex-summary"
 
 const locationSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name is too long"),
   description: z.string().optional(),
+  chapterIds: z.array(z.string()),
   // type field removed - users can describe location types freely in description
   parentLocationId: z.string().optional(),
   image: z.string().optional(),
@@ -39,6 +42,7 @@ type LocationFormData = z.infer<typeof locationSchema>
 interface LocationDialogProps {
   location?: Location | null
   mode: "create" | "edit"
+  onCreated?: (id: string) => void
   onOpenChange: (open: boolean) => void
   open: boolean
   projectId: string
@@ -50,6 +54,7 @@ export function LocationDialog({
   projectId,
   location,
   mode,
+  onCreated,
 }: LocationDialogProps) {
   const { messages: m } = useLocale()
   const queryClient = useQueryClient()
@@ -59,10 +64,17 @@ export function LocationDialog({
     defaultValues: {
       name: location?.name || "",
       description: location?.description || "",
+      chapterIds: location?.chapterIds ?? [],
       // type field removed
       parentLocationId: location?.parentLocationId || "",
       image: location?.image || "",
     },
+  })
+
+  const { data: chapters = [] } = useQuery({
+    queryKey: ["chapters", projectId],
+    queryFn: () => api.chapters.list(projectId),
+    enabled: open,
   })
 
   // Reset form when location or mode changes
@@ -70,6 +82,7 @@ export function LocationDialog({
     form.reset({
       name: location?.name || "",
       description: location?.description || "",
+      chapterIds: location?.chapterIds ?? [],
       // type field removed
       parentLocationId: location?.parentLocationId || "",
       image: location?.image || "",
@@ -78,9 +91,13 @@ export function LocationDialog({
 
   const createLocationMutation = useMutation({
     mutationFn: (data: LocationFormData) => api.locations.create(projectId, data),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
       toast.success(m.codex.locationCreated)
+      toastCodexSummary(result, m)
+      if ("id" in result && typeof result.id === "string") {
+        onCreated?.(result.id)
+      }
       onOpenChange(false)
       form.reset()
     },
@@ -96,9 +113,10 @@ export function LocationDialog({
       }
       return api.locations.update(projectId, location.id, data)
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
       toast.success(m.codex.locationUpdated)
+      toastCodexSummary(result, m)
       onOpenChange(false)
     },
     onError: (error) => {
@@ -159,6 +177,26 @@ export function LocationDialog({
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="chapterIds"
+              render={({ field }) => (
+                <FormItem>
+                  <BindingChecklist
+                    emptyLabel={m.codex.noChaptersToBind}
+                    group="location-chapters"
+                    hint={m.codex.bindLocationChaptersHint}
+                    label={m.codex.bindChapters}
+                    onChange={field.onChange}
+                    options={chapters.map((chapter) => ({ id: chapter.id, label: chapter.title }))}
+                    searchPlaceholder={m.codex.searchBindings}
+                    selectedIds={field.value}
+                  />
                   <FormMessage />
                 </FormItem>
               )}

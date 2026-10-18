@@ -22,8 +22,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import UserMenu from "@/components/user-menu"
-import { api } from "@/lib/api"
 import { useLocale } from "@/i18n/locale"
+import { api } from "@/lib/api"
 
 interface ProjectSidebarProps {
   projectId: string
@@ -141,9 +141,17 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
     },
   })
 
-  // For now, keeping notes as empty until there's a proper API endpoint
-  // This could be extended to use lore entries with a specific type filter
-  const notes: Array<{ id: string; name: string; role: string }> = []
+  const { data: notes = [] } = useQuery({
+    queryKey: ["notes", projectId],
+    queryFn: async () => {
+      const result = await api.notes.list(projectId)
+      return result.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        role: "",
+      }))
+    },
+  })
 
   const toggleCodexSection = (section: string) => {
     setExpandedCodexSections((prev) => ({

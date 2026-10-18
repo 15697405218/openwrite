@@ -266,6 +266,14 @@ body {
   @apply h-full;
 }
 
+.ghost-text {
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre-wrap;
+}
+
 .ProseMirror h1 {
   @apply text-3xl font-bold mb-4 mt-6;
 }

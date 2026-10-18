@@ -14,14 +14,22 @@ import { useEffect } from "react"
 import { EditorToolbar } from "@/components/editor-toolbar"
 import { useLocale } from "@/i18n/locale"
 import { setActiveEditor } from "@/lib/active-editor"
+import { ghostTextExtension } from "@/lib/ghost-text"
+import { useGhostCompletion } from "@/lib/use-ghost-completion"
 
 interface TiptapEditorProps {
   content?: string
   onUpdate?: (content: string) => void
   placeholder?: string
+  projectId?: string
 }
 
-export default function TiptapEditor({ content = "", onUpdate, placeholder }: TiptapEditorProps) {
+export default function TiptapEditor({
+  content = "",
+  onUpdate,
+  placeholder,
+  projectId,
+}: TiptapEditorProps) {
   const { messages: m } = useLocale()
   const editor = useEditor({
     shouldRerenderOnTransaction: true,
@@ -75,6 +83,7 @@ export default function TiptapEditor({ content = "", onUpdate, placeholder }: Ti
       Placeholder.configure({
         placeholder: placeholder ?? m.editor.writePlaceholder,
       }),
+      ghostTextExtension,
     ],
     content,
     onUpdate: ({ editor: editorInstance }) => {
@@ -93,6 +102,8 @@ export default function TiptapEditor({ content = "", onUpdate, placeholder }: Ti
     setActiveEditor(editor)
     return () => setActiveEditor(null)
   }, [editor])
+
+  useGhostCompletion(editor, projectId)
 
   if (!editor) {
     return <div className="animate-pulse">{m.writing.loadingEditor}</div>

@@ -71,6 +71,55 @@
       "when": 1785701191973,
       "tag": "0009_puzzling_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1760800000000,
+      "tag": "0010_volume_and_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1760900000000,
+      "tag": "0011_chapter_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1761000000000,
+      "tag": "0012_codex_summary",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1761100000000,
+      "tag": "0013_chapter_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1761200000000,
+      "tag": "0014_chat_thread",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1761300000000,
+      "tag": "0015_chat_pending",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1761400000000,
+      "tag": "0016_langgraph_checkpoint",
+      "breakpoints": true
     }
   ]
 }

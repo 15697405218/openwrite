@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
+import { BindingChecklist } from "@/components/binding-checklist"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,12 +26,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { fill, useLocale } from "@/i18n/locale"
 import { api, type Character } from "@/lib/api"
+import { toastCodexSummary } from "@/lib/codex-summary"
 
 const characterSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name is too long"),
   description: z.string().optional(),
-  // role field removed - users can describe character roles freely in description
-  // appearance, personality, backstory, motivation removed - simplified to just name and description
+  chapterIds: z.array(z.string()),
 })
 
 type CharacterFormData = z.infer<typeof characterSchema>
@@ -38,6 +39,7 @@ type CharacterFormData = z.infer<typeof characterSchema>
 interface CharacterDialogProps {
   character?: Character | null
   mode: "create" | "edit"
+  onCreated?: (id: string) => void
   onOpenChange: (open: boolean) => void
   open: boolean
   projectId: string
@@ -49,6 +51,7 @@ export function CharacterDialog({
   projectId,
   character,
   mode,
+  onCreated,
 }: CharacterDialogProps) {
   const { messages: m } = useLocale()
   const queryClient = useQueryClient()
@@ -58,9 +61,14 @@ export function CharacterDialog({
     defaultValues: {
       name: character?.name || "",
       description: character?.description || "",
-      // role field removed
-      // appearance, personality, backstory, motivation removed - simplified to just name and description
+      chapterIds: character?.chapterIds ?? [],
     },
+  })
+
+  const { data: chapters = [] } = useQuery({
+    queryKey: ["chapters", projectId],
+    queryFn: () => api.chapters.list(projectId),
+    enabled: open,
   })
 
   // Reset form when character or mode changes
@@ -68,16 +76,19 @@ export function CharacterDialog({
     form.reset({
       name: character?.name || "",
       description: character?.description || "",
-      // role field removed
-      // appearance, personality, backstory, motivation removed - simplified to just name and description
+      chapterIds: character?.chapterIds ?? [],
     })
   }, [character, form])
 
   const createCharacterMutation = useMutation({
     mutationFn: (data: CharacterFormData) => api.characters.create(projectId, data),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
       toast.success(m.codex.characterCreated)
+      toastCodexSummary(result, m)
+      if ("id" in result && typeof result.id === "string") {
+        onCreated?.(result.id)
+      }
       onOpenChange(false)
       form.reset()
     },
@@ -93,9 +104,10 @@ export function CharacterDialog({
       }
       return api.characters.update(projectId, character.id, data)
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
       toast.success(m.codex.characterUpdated)
+      toastCodexSummary(result, m)
       onOpenChange(false)
     },
     onError: (error) => {
@@ -156,6 +168,26 @@ export function CharacterDialog({
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="chapterIds"
+              render={({ field }) => (
+                <FormItem>
+                  <BindingChecklist
+                    emptyLabel={m.codex.noChaptersToBind}
+                    group="character-chapters"
+                    hint={m.codex.bindChaptersHint}
+                    label={m.codex.bindChapters}
+                    onChange={field.onChange}
+                    options={chapters.map((chapter) => ({ id: chapter.id, label: chapter.title }))}
+                    searchPlaceholder={m.codex.searchBindings}
+                    selectedIds={field.value}
+                  />
                   <FormMessage />
                 </FormItem>
               )}

@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.4.0",
+    "@langchain/langgraph": "^1.5.1",
     "@libsql/client": "^0.17.3",
     "@radix-ui/react-select": "^2.3.0",
     "@scalar/hono-api-reference": "^0.11.1",

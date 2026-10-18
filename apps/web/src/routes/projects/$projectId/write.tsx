@@ -2,13 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { ChapterCreateDialog } from "@/components/chapter-create-dialog"
 import { ChapterList } from "@/components/chapter-list"
 import { GuidedTour, type TourStep, useTour } from "@/components/guided-tour"
 import { StatusBar } from "@/components/status-bar"
 import TiptapEditor from "@/components/tiptap-editor"
 import { Button } from "@/components/ui/button"
 import { fill, useLocale } from "@/i18n/locale"
+import { clearActiveChapter, setActiveChapter } from "@/lib/active-chapter"
+import { getActiveEditor } from "@/lib/active-editor"
 import { ApiError, api } from "@/lib/api"
+import { setChapterEditHandler } from "@/lib/chapter-edits"
 import { type SaveState, type SaveStatusCopy, saveStatusText } from "@/lib/save-status"
 import { countWordsInHtml } from "@/lib/word-count"
 
@@ -65,6 +69,13 @@ function WriteInterface() {
   })
 
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setActiveChapter(projectId, selectedChapterId)
+    return () => {
+      clearActiveChapter(projectId)
+    }
+  }, [projectId, selectedChapterId])
 
   // Select the first chapter once the list loads (or after deletion)
   useEffect(() => {
@@ -186,6 +197,39 @@ function WriteInterface() {
     [selectedChapterId, saveContent]
   )
 
+  useEffect(() => {
+    setChapterEditHandler((edits) => {
+      for (const edit of edits) {
+        if (edit.chapterId !== selectedChapterId) {
+          queryClient.invalidateQueries({
+            queryKey: ["chapter-content", projectId, edit.chapterId],
+          })
+          continue
+        }
+        window.clearTimeout(timerRef.current)
+        baseUpdatedAtRef.current = edit.updatedAt
+        pendingRef.current = { chapterId: edit.chapterId, content: edit.content, dirty: false }
+        conflictRef.current = false
+        const editor = getActiveEditor()
+        if (editor) {
+          editor.commands.setContent(edit.content, { emitUpdate: false })
+        } else {
+          queryClient.invalidateQueries({
+            queryKey: ["chapter-content", projectId, edit.chapterId],
+          })
+        }
+        setWordCount(countWordsInHtml(edit.content))
+        setSavedAt(edit.updatedAt)
+        setSaveState("saved")
+      }
+      if (edits.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["chapters", projectId] })
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      }
+    })
+    return () => setChapterEditHandler(null)
+  }, [projectId, queryClient, selectedChapterId])
+
   // Flush unsaved changes when switching chapters or leaving the page
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedChapterId intentionally re-arms the cleanup so pending edits flush on chapter switch
   useEffect(
@@ -208,26 +252,43 @@ function WriteInterface() {
     [projectId, selectedChapterId]
   )
 
-  const createFirstChapter = useMutation({
-    mutationFn: async () => await api.chapters.create(projectId),
-    onSuccess: (result) => {
+  const [createChapterOpen, setCreateChapterOpen] = useState(false)
+
+  const summarizeChapter = useMutation({
+    mutationFn: async () => {
+      if (!selectedChapterId) {
+        throw new Error(m.chapters.noSummary)
+      }
+      return await api.chapters.summarize(projectId, selectedChapterId)
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chapters", projectId] })
-      setSelectedChapterId(result.id)
+      toast.success(m.chapters.summaryReady)
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === "no_provider") {
+        toast.error(m.chapters.summaryNeedsProvider)
+        return
+      }
+      if (error instanceof ApiError && error.code === "empty_chapter") {
+        toast.error(m.chapters.summaryEmpty)
+        return
+      }
+      const message = error instanceof Error ? error.message : m.editor.unknownError
+      toast.error(fill(m.chapters.summaryFailed, { message }))
     },
   })
-  const { mutate: createFirstChapterMutate } = createFirstChapter
 
-  // A brand-new project has no chapters; create Chapter 1 automatically so the
-  // writer lands in an editor, not in front of another button. The ref makes
-  // this a single attempt — on failure the manual button below takes over.
-  const autoCreateAttemptedRef = useRef(false)
+  // A brand-new project has no chapters. Ask once which entries this chapter
+  // should carry, instead of creating an unbound chapter in the background.
+  const promptedForChapterRef = useRef(false)
   useEffect(() => {
-    if (chaptersLoading || chapters.length > 0 || autoCreateAttemptedRef.current) {
+    if (chaptersLoading || chapters.length > 0 || promptedForChapterRef.current) {
       return
     }
-    autoCreateAttemptedRef.current = true
-    createFirstChapterMutate()
-  }, [chaptersLoading, chapters.length, createFirstChapterMutate])
+    promptedForChapterRef.current = true
+    setCreateChapterOpen(true)
+  }, [chaptersLoading, chapters.length])
 
   if (chaptersLoading) {
     return (
@@ -247,27 +308,47 @@ function WriteInterface() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <ChapterCreateDialog
+          onCreated={(result) => {
+            queryClient.invalidateQueries({ queryKey: ["chapters", projectId] })
+            queryClient.invalidateQueries({ queryKey: ["volumes", projectId] })
+            setSelectedChapterId(result.id)
+            if (result.previousSummary) {
+              toast.success(m.chapters.previousSummaryReady)
+            }
+          }}
+          onOpenChange={setCreateChapterOpen}
+          open={createChapterOpen}
+          projectId={projectId}
+          volumeTitle={fill(m.chapters.volumeName, { count: 1 })}
+        />
+
         {chapters.length === 0 && (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-            {createFirstChapter.isError ? (
-              <>
-                <p className="text-muted-foreground">{m.chapters.firstChapter}</p>
-                <Button
-                  disabled={createFirstChapter.isPending}
-                  onClick={() => createFirstChapter.mutate()}
-                  type="button"
-                >
-                  {m.chapters.createFirst}
-                </Button>
-              </>
-            ) : (
-              <p className="animate-pulse text-muted-foreground">{m.chapters.preparing}</p>
-            )}
+            <p className="text-muted-foreground">{m.chapters.firstChapter}</p>
+            <Button onClick={() => setCreateChapterOpen(true)} type="button">
+              {m.chapters.createFirst}
+            </Button>
           </div>
         )}
 
         {chapters.length > 0 && selectedChapterId && (
           <>
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-2">
+              <p className="line-clamp-2 text-muted-foreground text-xs">
+                {chapters.find((chapter) => chapter.id === selectedChapterId)?.summary?.trim() ||
+                  m.chapters.noSummary}
+              </p>
+              <Button
+                disabled={summarizeChapter.isPending}
+                onClick={() => summarizeChapter.mutate()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {summarizeChapter.isPending ? m.chapters.summarizing : m.chapters.generateSummary}
+              </Button>
+            </div>
             <div className="flex-1 overflow-auto" data-tour="editor">
               {contentLoading || !doc ? (
                 <div className="flex h-full items-center justify-center">
@@ -281,6 +362,7 @@ function WriteInterface() {
                   key={`${selectedChapterId}:${doc.updatedAt}`}
                   onUpdate={handleEditorUpdate}
                   placeholder={m.chapters.placeholder}
+                  projectId={projectId}
                 />
               )}
             </div>

@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { Monitor, Moon, Sun } from "lucide-react"
+import { LogOut, Monitor, Moon, Sun } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
 import { useTheme } from "@/components/theme-provider"
 import {
   DropdownMenu,
@@ -10,9 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useLocale } from "@/i18n/locale"
+import { authClient } from "@/lib/auth-client"
 import { Button } from "./ui/button"
 import { Skeleton } from "./ui/skeleton"
-import { useLocale } from "@/i18n/locale"
 
 async function fetchSession() {
   const baseUrl =
@@ -31,18 +34,9 @@ async function fetchSession() {
   return response.json()
 }
 
-async function signOut() {
-  const baseUrl =
-    import.meta.env.DEV && import.meta.env.VITE_SERVER_URL
-      ? import.meta.env.VITE_SERVER_URL
-      : window.location.origin
-
-  const response = await fetch(`${baseUrl}/api/auth/sign-out`, {
-    method: "POST",
-    credentials: "include",
-  })
-
-  return response.ok
+const signedOutSession = {
+  authenticated: false,
+  session: null,
 }
 
 export default function UserMenu() {
@@ -50,6 +44,7 @@ export default function UserMenu() {
   const queryClient = useQueryClient()
   const { setTheme, theme } = useTheme()
   const { messages: m } = useLocale()
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const sessionQuery = useQuery({
     queryKey: ["session"],
@@ -61,13 +56,22 @@ export default function UserMenu() {
   })
 
   const handleSignOut = async () => {
+    if (isSigningOut) {
+      return
+    }
+    setIsSigningOut(true)
     try {
-      await signOut()
-      // Invalidate session query to refresh UI
-      queryClient.invalidateQueries({ queryKey: ["session"] })
-      navigate({ to: "/" })
+      const result = await authClient.signOut()
+      if (result.error) {
+        setIsSigningOut(false)
+        toast.error(m.dashboard.signOutFailed)
+        return
+      }
+      queryClient.setQueryData(["session"], signedOutSession)
+      await navigate({ to: "/login" })
     } catch {
-      // Ignore logout errors - user will be redirected anyway
+      setIsSigningOut(false)
+      toast.error(m.dashboard.signOutFailed)
     }
   }
 
@@ -92,7 +96,7 @@ export default function UserMenu() {
           {session.user.name || m.common.user}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 bg-card">
+      <DropdownMenuContent align="start" className="w-56 bg-card" side="top">
         <DropdownMenuLabel>{m.dashboard.myAccount}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>{session.user.email}</DropdownMenuItem>
@@ -117,10 +121,15 @@ export default function UserMenu() {
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Button className="w-full" onClick={handleSignOut} variant="destructive">
-            {m.dashboard.signOut}
-          </Button>
+        <DropdownMenuItem
+          disabled={isSigningOut}
+          onSelect={async () => {
+            await handleSignOut()
+          }}
+          variant="destructive"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {m.dashboard.signOut}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

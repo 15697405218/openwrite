@@ -2,11 +2,26 @@ import { and, desc, eq } from "drizzle-orm"
 import { type Context, Hono } from "hono"
 import { db } from "../db"
 import { character, location, lore, member, organization, plotPoint, project } from "../db/schema"
+import {
+  characterChapterMap,
+  filterChapterIds,
+  filterCharacterIds,
+  locationChapterMap,
+  plotBindingMaps,
+  readIdList,
+  replaceCharacterChapters,
+  replaceLocationChapters,
+  replacePlotChapters,
+  replacePlotCharacters,
+  withLegacyChapter,
+} from "../lib/codex-links"
+import { type CodexKind, syncCodexSummary } from "../lib/codex-summary"
 import { requireAuth, verifyProjectAccess } from "../middleware/auth"
 import { aiRouter } from "./ai"
 import { aiProvidersRouter } from "./ai-providers"
 import { contentRouter } from "./content"
 import graphRouter from "./graph"
+import { notesRouter } from "./notes"
 
 interface Env {
   BETTER_AUTH_SECRET: string
@@ -32,6 +47,26 @@ interface Variables {
 }
 
 const router = new Hono<{ Bindings: Env; Variables: Variables }>()
+
+type ApiContext = Context<{ Bindings: Env; Variables: Variables }>
+
+function entrySummary(
+  c: ApiContext,
+  kind: CodexKind,
+  id: string,
+  name: unknown,
+  description: unknown
+) {
+  const label = typeof name === "string" && name.trim().length > 0 ? name.trim() : kind
+  return syncCodexSummary({
+    kind,
+    id,
+    name: label,
+    description,
+    userId: c.get("user").id,
+    env: c.env,
+  })
+}
 
 // Create organization for new users (auto-created personal org)
 router.post(
@@ -311,9 +346,12 @@ router.get(
       .where(eq(character.projectId, projectId))
       .orderBy(character.name)
 
+    const chaptersByCharacter = await characterChapterMap(projectId)
+
     return c.json({
       characters: characters.map((char) => ({
         ...char,
+        chapterIds: chaptersByCharacter.get(char.id) ?? [],
         createdAt: char.createdAt.toISOString(),
         updatedAt: char.updatedAt.toISOString(),
       })),
@@ -343,9 +381,12 @@ router.get(
       return c.json({ error: "Character not found" }, 404)
     }
 
+    const chaptersByCharacter = await characterChapterMap(projectId)
+
     return c.json({
       character: {
         ...characterData,
+        chapterIds: chaptersByCharacter.get(characterId) ?? [],
         createdAt: characterData.createdAt.toISOString(),
         updatedAt: characterData.updatedAt.toISOString(),
       },
@@ -388,7 +429,14 @@ router.post(
         updatedAt: now,
       })
 
-      return c.json({ success: true, id })
+      const chapterIds = readIdList(body.chapterIds)
+      if (chapterIds) {
+        await replaceCharacterChapters(id, await filterChapterIds(projectId, chapterIds))
+      }
+
+      const summaryStatus = await entrySummary(c, "character", id, name, description)
+
+      return c.json({ success: true, id, summaryStatus })
     } catch {
       return c.json({ error: "Failed to create character" }, 500)
     }
@@ -408,7 +456,8 @@ router.put(
     }
 
     try {
-      const { name, description, image, metadata } = await c.req.json()
+      const body = await c.req.json()
+      const { name, description, image, metadata } = body
 
       const updateData: Record<string, string | Date | null> = {
         updatedAt: new Date(),
@@ -433,7 +482,14 @@ router.put(
         .set(updateData)
         .where(and(eq(character.id, characterId), eq(character.projectId, projectId)))
 
-      return c.json({ success: true })
+      const chapterIds = readIdList(body.chapterIds)
+      if (chapterIds) {
+        await replaceCharacterChapters(characterId, await filterChapterIds(projectId, chapterIds))
+      }
+
+      const summaryStatus = await entrySummary(c, "character", characterId, name, description)
+
+      return c.json({ success: true, summaryStatus })
     } catch {
       return c.json({ error: "Failed to update character" }, 500)
     }
@@ -490,9 +546,12 @@ router.get(
       .where(eq(location.projectId, projectId))
       .orderBy(location.name)
 
+    const chaptersByLocation = await locationChapterMap(projectId)
+
     return c.json({
       locations: locations.map((loc) => ({
         ...loc,
+        chapterIds: chaptersByLocation.get(loc.id) ?? [],
         createdAt: loc.createdAt.toISOString(),
         updatedAt: loc.updatedAt.toISOString(),
       })),
@@ -522,9 +581,12 @@ router.get(
       return c.json({ error: "Location not found" }, 404)
     }
 
+    const chaptersByLocation = await locationChapterMap(projectId)
+
     return c.json({
       location: {
         ...locationData,
+        chapterIds: chaptersByLocation.get(locationId) ?? [],
         createdAt: locationData.createdAt.toISOString(),
         updatedAt: locationData.updatedAt.toISOString(),
       },
@@ -565,7 +627,14 @@ router.post(
         updatedAt: now,
       })
 
-      return c.json({ success: true, id })
+      const chapterIds = readIdList(body.chapterIds)
+      if (chapterIds) {
+        await replaceLocationChapters(id, await filterChapterIds(projectId, chapterIds))
+      }
+
+      const summaryStatus = await entrySummary(c, "location", id, body.name, body.description)
+
+      return c.json({ success: true, id, summaryStatus })
     } catch {
       return c.json({ error: "Failed to create location" }, 500)
     }
@@ -598,7 +667,20 @@ router.put(
         })
         .where(and(eq(location.id, locationId), eq(location.projectId, projectId)))
 
-      return c.json({ success: true })
+      const chapterIds = readIdList(body.chapterIds)
+      if (chapterIds) {
+        await replaceLocationChapters(locationId, await filterChapterIds(projectId, chapterIds))
+      }
+
+      const summaryStatus = await entrySummary(
+        c,
+        "location",
+        locationId,
+        body.name,
+        body.description
+      )
+
+      return c.json({ success: true, summaryStatus })
     } catch {
       return c.json({ error: "Failed to update location" }, 500)
     }
@@ -727,7 +809,9 @@ router.post(
         updatedAt: now,
       })
 
-      return c.json({ success: true, id })
+      const summaryStatus = await entrySummary(c, "lore", id, body.name, body.description)
+
+      return c.json({ success: true, id, summaryStatus })
     } catch {
       return c.json({ error: "Failed to create lore entry" }, 500)
     }
@@ -759,7 +843,9 @@ router.put(
         })
         .where(and(eq(lore.id, loreId), eq(lore.projectId, projectId)))
 
-      return c.json({ success: true })
+      const summaryStatus = await entrySummary(c, "lore", loreId, body.name, body.description)
+
+      return c.json({ success: true, summaryStatus })
     } catch {
       return c.json({ error: "Failed to update lore entry" }, 500)
     }
@@ -815,9 +901,13 @@ router.get(
       .where(eq(plotPoint.projectId, projectId))
       .orderBy(plotPoint.order)
 
+    const bindings = await plotBindingMaps(projectId)
+
     return c.json({
       plotPoints: plotPoints.map((point) => ({
         ...point,
+        chapterIds: withLegacyChapter(bindings.chapters.get(point.id) ?? [], point.chapterId),
+        characterIds: bindings.characters.get(point.id) ?? [],
         createdAt: point.createdAt.toISOString(),
         updatedAt: point.updatedAt.toISOString(),
       })),
@@ -847,9 +937,16 @@ router.get(
       return c.json({ error: "Plot point not found" }, 404)
     }
 
+    const bindings = await plotBindingMaps(projectId)
+
     return c.json({
       plotPoint: {
         ...plotPointData,
+        chapterIds: withLegacyChapter(
+          bindings.chapters.get(plotPointId) ?? [],
+          plotPointData.chapterId
+        ),
+        characterIds: bindings.characters.get(plotPointId) ?? [],
         createdAt: plotPointData.createdAt.toISOString(),
         updatedAt: plotPointData.updatedAt.toISOString(),
       },
@@ -901,6 +998,11 @@ router.post(
 
     const id = crypto.randomUUID()
     const now = new Date()
+    const chapterIds = await filterChapterIds(
+      projectId,
+      readIdList(body.chapterIds) ?? (typeof body.chapterId === "string" ? [body.chapterId] : [])
+    )
+    const characterIds = await filterCharacterIds(projectId, readIdList(body.characterIds) ?? [])
 
     try {
       await db.insert(plotPoint).values({
@@ -910,13 +1012,17 @@ router.post(
         type: body.type,
         order: body.order,
         status: body.status || "planned",
-        chapterId: body.chapterId,
+        chapterId: chapterIds.at(0) ?? null,
         projectId,
         createdAt: now,
         updatedAt: now,
       })
+      await replacePlotChapters(id, chapterIds)
+      await replacePlotCharacters(id, characterIds)
 
-      return c.json({ success: true, id })
+      const summaryStatus = await entrySummary(c, "plot", id, body.title, body.description)
+
+      return c.json({ success: true, id, summaryStatus })
     } catch {
       return c.json({ error: "Failed to create plot point" }, 500)
     }
@@ -950,7 +1056,23 @@ router.put(
         })
         .where(and(eq(plotPoint.id, plotPointId), eq(plotPoint.projectId, projectId)))
 
-      return c.json({ success: true })
+      const chapterIds = readIdList(body.chapterIds)
+      if (chapterIds) {
+        const allowed = await filterChapterIds(projectId, chapterIds)
+        await replacePlotChapters(plotPointId, allowed)
+        await db
+          .update(plotPoint)
+          .set({ chapterId: allowed.at(0) ?? null })
+          .where(and(eq(plotPoint.id, plotPointId), eq(plotPoint.projectId, projectId)))
+      }
+      const characterIds = readIdList(body.characterIds)
+      if (characterIds) {
+        await replacePlotCharacters(plotPointId, await filterCharacterIds(projectId, characterIds))
+      }
+
+      const summaryStatus = await entrySummary(c, "plot", plotPointId, body.title, body.description)
+
+      return c.json({ success: true, summaryStatus })
     } catch {
       return c.json({ error: "Failed to update plot point" }, 500)
     }
@@ -989,6 +1111,9 @@ router.route("/ai", aiRouter)
 
 // Mount writing content router
 router.route("/", contentRouter)
+
+// Mount notes stored on the project
+router.route("/", notesRouter)
 
 // Mount graph router
 router.route("/", graphRouter)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { BindingChecklist } from "@/components/binding-checklist"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,14 +15,39 @@ import { Textarea } from "@/components/ui/textarea"
 import { fill, useLocale } from "@/i18n/locale"
 
 export interface CodexEntryValues {
+  chapterIds: string[]
+  characterIds: string[]
   description: string
   name: string
+}
+
+interface CodexLinkChoices {
+  chapterHint?: string
+  chapters: { id: string; title: string }[]
+  characters: { id: string; name: string }[]
+  initialChapterIds: string[]
+  initialCharacterIds: string[]
+  showCharacters: boolean
+}
+
+function chapterBindingHint(
+  links: CodexLinkChoices,
+  messages: { codex: { bindChaptersHint: string; bindPlotChaptersHint: string } }
+): string {
+  if (links.chapterHint) {
+    return links.chapterHint
+  }
+  if (links.showCharacters) {
+    return messages.codex.bindPlotChaptersHint
+  }
+  return messages.codex.bindChaptersHint
 }
 
 interface CodexEntryDialogProps {
   initialDescription?: string
   initialName?: string
   isSaving: boolean
+  links?: CodexLinkChoices
   mode: "create" | "edit"
   nameLabel: string
   nounLabel: string
@@ -44,20 +70,28 @@ export function CodexEntryDialog({
   nameLabel,
   initialName = "",
   initialDescription = "",
+  links,
   isSaving,
   onSubmit,
 }: CodexEntryDialogProps) {
   const { messages: m } = useLocale()
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
+  const [chapterIds, setChapterIds] = useState<string[]>(links?.initialChapterIds ?? [])
+  const [characterIds, setCharacterIds] = useState<string[]>(links?.initialCharacterIds ?? [])
+
+  const initialChapterKey = links?.initialChapterIds.join("\n") ?? ""
+  const initialCharacterKey = links?.initialCharacterIds.join("\n") ?? ""
 
   // Reseed the fields whenever the dialog opens for a different entry.
   useEffect(() => {
     if (open) {
       setName(initialName)
       setDescription(initialDescription)
+      setChapterIds(initialChapterKey.length > 0 ? initialChapterKey.split("\n") : [])
+      setCharacterIds(initialCharacterKey.length > 0 ? initialCharacterKey.split("\n") : [])
     }
-  }, [open, initialName, initialDescription])
+  }, [open, initialName, initialDescription, initialChapterKey, initialCharacterKey])
 
   const trimmedName = name.trim()
   const canSave = trimmedName.length > 0 && !isSaving
@@ -67,7 +101,12 @@ export function CodexEntryDialog({
     if (!canSave) {
       return
     }
-    onSubmit({ name: trimmedName, description: description.trim() })
+    onSubmit({
+      name: trimmedName,
+      description: description.trim(),
+      chapterIds,
+      characterIds,
+    })
   }
 
   return (
@@ -108,6 +147,35 @@ export function CodexEntryDialog({
               value={description}
             />
           </div>
+
+          {links && (
+            <BindingChecklist
+              emptyLabel={m.codex.noChaptersToBind}
+              group="codex-chapters"
+              hint={chapterBindingHint(links, m)}
+              label={links.showCharacters ? m.codex.bindPlotChapters : m.codex.bindChapters}
+              onChange={setChapterIds}
+              options={links.chapters.map((chapter) => ({ id: chapter.id, label: chapter.title }))}
+              searchPlaceholder={m.codex.searchBindings}
+              selectedIds={chapterIds}
+            />
+          )}
+
+          {links?.showCharacters && (
+            <BindingChecklist
+              emptyLabel={m.codex.noCharactersToBind}
+              group="codex-characters"
+              hint={m.codex.bindPlotCharactersHint}
+              label={m.codex.bindPlotCharacters}
+              onChange={setCharacterIds}
+              options={links.characters.map((character) => ({
+                id: character.id,
+                label: character.name,
+              }))}
+              searchPlaceholder={m.codex.searchBindings}
+              selectedIds={characterIds}
+            />
+          )}
 
           <DialogFooter>
             <Button

@@ -5,7 +5,7 @@
  * Import specific clients or the entire API object as needed.
  */
 
-export type { AiChatMessage, AiChatRequest, AiChatResponse } from "./ai"
+export type { AiChatMessage, AiChatRequest, AiChatResponse, StoredChatMessage } from "./ai"
 // AI Chat API
 export { aiApi } from "./ai"
 export type {
@@ -34,7 +34,6 @@ export type {
 // Characters API
 export { charactersApi, createCharacterApi } from "./characters"
 export type { ProjectContent, SaveContentResult } from "./content"
-// Writing content API
 export { contentApi } from "./content"
 export type {
   ConnectionType,
@@ -66,6 +65,8 @@ export type {
 } from "./lore"
 // Lore API
 export { createLoreApi, loreApi } from "./lore"
+export type { StoryNote, StoryNoteInput } from "./notes"
+export { notesApi } from "./notes"
 export type {
   CreatePlotData,
   PlotThread,
@@ -84,6 +85,8 @@ export type {
 } from "./projects"
 // Project API (formerly Novel API)
 export { novelApi, projectApi } from "./projects"
+export type { Volume } from "./volumes"
+export { volumesApi } from "./volumes"
 
 import { aiApi } from "./ai"
 import { aiProvidersApi } from "./ai-providers"
@@ -93,8 +96,10 @@ import { contentApi } from "./content"
 import { graphApi } from "./graph"
 import { locationsApi } from "./locations"
 import { loreApi } from "./lore"
+import { notesApi } from "./notes"
 import { plotApi } from "./plot"
 import { novelApi, projectApi } from "./projects"
+import { volumesApi } from "./volumes"
 
 // Future API clients will be exported here:
 // export { chapterApi } from "./chapters"
@@ -110,6 +115,8 @@ export const api = {
   aiProviders: aiProvidersApi,
   chapters: chaptersApi,
   content: contentApi,
+  notes: notesApi,
+  volumes: volumesApi,
   characters: charactersApi,
   locations: locationsApi,
   lore: loreApi,

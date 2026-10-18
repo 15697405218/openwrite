@@ -13,6 +13,7 @@ export interface Chapter {
   summary: string | null
   title: string
   updatedAt: string
+  volumeId: string
   wordCount: number
   workId: string
 }
@@ -38,11 +39,21 @@ export const chaptersApi = {
     return Array.isArray(response.chapters) ? response.chapters : []
   },
 
-  async create(projectId: string, title?: string): Promise<{ success: boolean; id: string }> {
+  async create(
+    projectId: string,
+    options?: {
+      characterIds?: string[]
+      locationIds?: string[]
+      plotIds?: string[]
+      title?: string
+      volumeId?: string
+      volumeTitle?: string
+    }
+  ): Promise<{ id: string; previousSummary?: boolean; success: boolean }> {
     return (await apiCall(`/api/projects/${projectId}/chapters`, {
       method: "POST",
-      body: JSON.stringify(title ? { title } : {}),
-    })) as { success: boolean; id: string }
+      body: JSON.stringify(options ?? {}),
+    })) as { id: string; previousSummary?: boolean; success: boolean }
   },
 
   async update(
@@ -54,6 +65,12 @@ export const chaptersApi = {
       method: "PUT",
       body: JSON.stringify(data),
     })) as { success: boolean }
+  },
+
+  async summarize(projectId: string, chapterId: string): Promise<{ summary: string }> {
+    return (await apiCall(`/api/projects/${projectId}/chapters/${chapterId}/summary`, {
+      method: "POST",
+    })) as { summary: string }
   },
 
   async reorder(projectId: string, chapterIds: string[]): Promise<{ success: boolean }> {

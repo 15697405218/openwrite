@@ -8,6 +8,7 @@
 import { type ApiClient, apiCall } from "./base"
 
 export interface Character {
+  chapterIds: string[]
   createdAt: Date
   description?: string
   id: string
@@ -22,6 +23,7 @@ export interface Character {
 }
 
 export interface CreateCharacterData {
+  chapterIds?: string[]
   description?: string
   // role field removed
   // appearance, personality, backstory, motivation removed - simplified to just name and description
