@@ -120,7 +120,7 @@ function WriteInterface() {
   // Seed word count and last-saved time from the loaded chapter
   useEffect(() => {
     if (doc) {
-      setWordCount(doc.wordCount)
+      setWordCount(countWordsInHtml(doc.content))
       setSavedAt(doc.updatedAt)
       setSaveState("idle")
       baseUpdatedAtRef.current = doc.updatedAt
@@ -302,6 +302,7 @@ function WriteInterface() {
     <div className="flex h-full">
       <ChapterList
         chapters={chapters}
+        liveWordCount={doc ? wordCount : undefined}
         onSelect={setSelectedChapterId}
         projectId={projectId}
         selectedChapterId={selectedChapterId}

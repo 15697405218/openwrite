@@ -14,4 +14,12 @@ describe("countWordsInHtml", () => {
   it("handles entities and repeated whitespace", () => {
     expect(countWordsInHtml("<p>one&nbsp;two   three</p>")).toBe(3)
   })
+
+  it("counts each Chinese character and ignores punctuation", () => {
+    expect(countWordsInHtml("<p>清河镇的雨落了七天。</p>")).toBe(9)
+  })
+
+  it("counts a Latin run inside Chinese as one word", () => {
+    expect(countWordsInHtml("<p>你说ddd</p>")).toBe(3)
+  })
 })

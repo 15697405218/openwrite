@@ -234,8 +234,7 @@ describe("promote-to-manuscript endpoint", () => {
     expect(rows[0].title).toBe("The Fog Bell")
     expect(rows[0].summary).toBe("Mara hears the bell at noon.")
     expect(rows[0].content).toBe("<p>The bell rang twice.</p><p>No ship &lt;appeared&gt;.</p>")
-    // countWordsInHtml tokenizes the escaped "&lt;appeared&gt;." as two words
-    expect(rows[0].wordCount).toBe(8)
+    expect(rows[0].wordCount).toBe(7)
   })
 
   it("does not duplicate the chapter when promoted twice", async () => {

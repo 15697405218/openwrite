@@ -11,7 +11,7 @@ import {
   isExpandableSubType,
   parseExpansionResponse,
 } from "../lib/story-expansion"
-import { countWordsInHtml } from "../lib/word-count"
+import { countWords, countWordsInHtml } from "../lib/word-count"
 import { requireAuth, verifyProjectAccess } from "../middleware/auth"
 import { isCompletionFailure, runCompletionForUser } from "./ai"
 import {
@@ -46,17 +46,6 @@ interface Variables {
 }
 
 const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>()
-
-// Move regex to top level to avoid performance issues
-const WORD_SPLIT_REGEX = /\s+/
-
-function countWords(content: string | null | undefined): number {
-  const trimmed = content?.trim()
-  if (!trimmed) {
-    return 0
-  }
-  return trimmed.split(WORD_SPLIT_REGEX).length
-}
 
 // Keep graphNode.wordCount in sync with the sum of its text blocks
 async function syncNodeWordCount(nodeId: string): Promise<void> {

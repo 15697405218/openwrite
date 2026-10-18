@@ -20,8 +20,21 @@ import { fill, useLocale } from "@/i18n/locale"
 import { api, type Chapter, type Volume } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
+function chapterCount(
+  chapter: Chapter,
+  selectedChapterId: string | null,
+  shownWordCount: number | undefined
+): string {
+  const count =
+    chapter.id === selectedChapterId && shownWordCount !== undefined
+      ? shownWordCount
+      : chapter.wordCount
+  return count.toLocaleString()
+}
+
 interface ChapterListProps {
   chapters: Chapter[]
+  liveWordCount?: number
   onSelect: (chapterId: string) => void
   projectId: string
   selectedChapterId: string | null
@@ -30,6 +43,7 @@ interface ChapterListProps {
 export function ChapterList({
   projectId,
   chapters,
+  liveWordCount,
   selectedChapterId,
   onSelect,
 }: ChapterListProps) {
@@ -96,6 +110,7 @@ export function ChapterList({
             onSelect={onSelect}
             projectId={projectId}
             selectedChapterId={selectedChapterId}
+            shownWordCount={liveWordCount}
             volume={volume}
           />
         ))}
@@ -126,6 +141,7 @@ interface VolumeBlockProps {
   onSelect: (chapterId: string) => void
   projectId: string
   selectedChapterId: string | null
+  shownWordCount?: number
   volume: Volume
 }
 
@@ -138,6 +154,7 @@ function VolumeBlock({
   onSelect,
   projectId,
   selectedChapterId,
+  shownWordCount,
 }: VolumeBlockProps) {
   const { messages: m } = useLocale()
   const [editingVolume, setEditingVolume] = useState(false)
@@ -348,7 +365,9 @@ function VolumeBlock({
                   >
                     <span className="block truncate font-medium text-sm">{chapter.title}</span>
                     <span className="block text-muted-foreground text-xs">
-                      {fill(m.chapters.words, { count: chapter.wordCount.toLocaleString() })}
+                      {fill(m.chapters.words, {
+                        count: chapterCount(chapter, selectedChapterId, shownWordCount),
+                      })}
                     </span>
                   </button>
                   <div className="hidden shrink-0 items-center group-hover:flex">
