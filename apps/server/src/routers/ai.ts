@@ -15,7 +15,16 @@ import {
   readCompletionPrefix,
 } from "../lib/completion-text"
 import { decryptApiKey } from "../lib/encryption"
-import { loadChatPacket } from "../lib/load-chat-context"
+import {
+  clipImportText,
+  clipKnownNames,
+  emptyImportExtract,
+  IMPORT_EXTRACT_MAX_TOKENS,
+  IMPORT_EXTRACT_SYSTEM,
+  importExtractPrompt,
+  parseImportExtract,
+} from "../lib/import-extract"
+import { type ChatFocusKind, loadChatPacket } from "../lib/load-chat-context"
 import {
   AUTOCOMPLETE_MAX_TOKENS,
   boundedOutputTokens,
@@ -61,8 +70,6 @@ const MAX_MESSAGES = 40
 const MAX_TOTAL_CHARS = 32_000
 const MAX_OUTPUT_TOKENS = CHAT_MAX_TOKENS
 const UPSTREAM_ERROR_PREVIEW_CHARS = 300
-const MAX_PREVIOUS_CHAPTERS = 30
-const MAX_SUMMARY_CHAPTERS = 40
 const MAX_CLIENT_CHAPTER_CHARS = 100_000
 
 // Providers that expose an OpenAI-compatible chat completions endpoint
@@ -126,29 +133,6 @@ function validateMessages(input: unknown): ChatMessage[] | null {
   return messages
 }
 
-function readCount(value: unknown, fallback: number, max: number): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback
-  }
-  return Math.min(max, Math.max(0, Math.trunc(value)))
-}
-
-function readSummaryIds(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const ids: string[] = []
-  for (const item of value) {
-    if (typeof item === "string" && item.length > 0 && !ids.includes(item)) {
-      ids.push(item)
-    }
-    if (ids.length >= MAX_SUMMARY_CHAPTERS) {
-      break
-    }
-  }
-  return ids
-}
-
 const MAX_CHAPTER_HTML_CHARS = 1_000_000
 
 function readDecisions(value: unknown): { approved: boolean; id: string }[] | null {
@@ -175,23 +159,43 @@ function readChapterHtml(value: unknown): string | undefined {
   return value
 }
 
+function readFocus(value: unknown): ChatFocusKind | undefined {
+  if (
+    value === "chapter" ||
+    value === "character" ||
+    value === "location" ||
+    value === "lore" ||
+    value === "none" ||
+    value === "note" ||
+    value === "outline" ||
+    value === "plot"
+  ) {
+    return value
+  }
+  return
+}
+
 function readChatContext(body: {
   chapterContent?: unknown
   chapterHtml?: unknown
   chapterId?: unknown
-  previousChapterCount?: unknown
-  summaryChapterIds?: unknown
+  focus?: unknown
+  focusId?: unknown
 }) {
+  const focus = readFocus(body.focus)
+  const onChapter = focus === undefined || focus === "chapter"
   return {
+    focus,
+    focusId: typeof body.focusId === "string" && body.focusId.length > 0 ? body.focusId : undefined,
     chapterId:
-      typeof body.chapterId === "string" && body.chapterId.length > 0 ? body.chapterId : undefined,
-    previousChapterCount: readCount(body.previousChapterCount, 3, MAX_PREVIOUS_CHAPTERS),
-    summaryChapterIds: readSummaryIds(body.summaryChapterIds),
+      onChapter && typeof body.chapterId === "string" && body.chapterId.length > 0
+        ? body.chapterId
+        : undefined,
     chapterContent:
-      typeof body.chapterContent === "string"
+      onChapter && typeof body.chapterContent === "string"
         ? body.chapterContent.slice(0, MAX_CLIENT_CHAPTER_CHARS)
         : undefined,
-    chapterHtml: readChapterHtml(body.chapterHtml),
+    chapterHtml: onChapter ? readChapterHtml(body.chapterHtml) : undefined,
   }
 }
 
@@ -633,8 +637,6 @@ aiRouter.get("/chat", requireAuth, async (c: AppContext) => {
   const packet = await loadChatPacket({
     projectId,
     organizationId: c.get("activeOrganization")?.id ?? "",
-    previousChapterCount: 0,
-    summaryChapterIds: [],
   })
   if (!packet) {
     return c.json({ error: "Project not found" }, 404)
@@ -654,10 +656,10 @@ aiRouter.post("/chat", requireAuth, async (c: AppContext) => {
     content?: unknown
     messages?: unknown
     allowCurrentChapter?: unknown
+    focus?: unknown
+    focusId?: unknown
     model?: unknown
-    previousChapterCount?: unknown
     projectId?: unknown
-    summaryChapterIds?: unknown
   }
   try {
     body = await c.req.json()
@@ -756,6 +758,8 @@ aiRouter.post("/chat/decide", requireAuth, async (c: AppContext) => {
     chapterHtml?: unknown
     chapterId?: unknown
     decisions?: unknown
+    focus?: unknown
+    focusId?: unknown
     model?: unknown
     projectId?: unknown
   }
@@ -769,12 +773,11 @@ aiRouter.post("/chat/decide", requireAuth, async (c: AppContext) => {
   if (projectId.length === 0 || !decisions) {
     return c.json({ error: "projectId and decisions are required" }, 400)
   }
+  const context = readChatContext(body)
   const packet = await loadChatPacket({
     projectId,
     organizationId: activeOrganization?.id ?? "",
-    previousChapterCount: 0,
-    summaryChapterIds: [],
-    chapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+    ...context,
   })
   if (!packet) {
     return c.json({ error: "Project not found" }, 404)
@@ -783,8 +786,8 @@ aiRouter.post("/chat/decide", requireAuth, async (c: AppContext) => {
   const result = await resumeInThread({
     allowCurrentChapter: body.allowCurrentChapter === true,
     decisions,
-    openChapterHtml: readChapterHtml(body.chapterHtml),
-    openChapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+    openChapterHtml: context.chapterHtml,
+    openChapterId: context.chapterId,
     packet,
     projectId,
     userId: user.id,
@@ -837,6 +840,8 @@ aiRouter.post("/chat/continue", requireAuth, async (c: AppContext) => {
     allowCurrentChapter?: unknown
     chapterHtml?: unknown
     chapterId?: unknown
+    focus?: unknown
+    focusId?: unknown
     model?: unknown
     projectId?: unknown
   }
@@ -849,12 +854,11 @@ aiRouter.post("/chat/continue", requireAuth, async (c: AppContext) => {
   if (projectId.length === 0) {
     return c.json({ error: "projectId is required" }, 400)
   }
+  const context = readChatContext(body)
   const packet = await loadChatPacket({
     projectId,
     organizationId: activeOrganization?.id ?? "",
-    previousChapterCount: 0,
-    summaryChapterIds: [],
-    chapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+    ...context,
   })
   if (!packet) {
     return c.json({ error: "Project not found" }, 404)
@@ -890,8 +894,8 @@ aiRouter.post("/chat/continue", requireAuth, async (c: AppContext) => {
         truncated: turn.truncated,
       }
     },
-    openChapterHtml: readChapterHtml(body.chapterHtml),
-    openChapterId: typeof body.chapterId === "string" ? body.chapterId : undefined,
+    openChapterHtml: context.chapterHtml,
+    openChapterId: context.chapterId,
     packet,
     projectId,
     userId: user.id,
@@ -939,6 +943,51 @@ aiRouter.post("/complete", requireAuth, async (c: AppContext) => {
     return c.json({ text: "" })
   }
   return c.json({ text: cleanContinuation(prefix, result.message) })
+})
+
+aiRouter.post("/import-extract", requireAuth, async (c: AppContext) => {
+  const user = c.get("user")
+  let body: { knownNames?: unknown; mode?: unknown; section?: unknown; text?: unknown }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400)
+  }
+
+  const text = typeof body.text === "string" ? clipImportText(body.text) : ""
+  if (text.length === 0) {
+    return c.json({ ...emptyImportExtract(), parsed: true })
+  }
+
+  const mode = body.mode === "notes" || body.mode === "settings" ? body.mode : "manuscript"
+  const known = Array.isArray(body.knownNames)
+    ? clipKnownNames(body.knownNames.filter((name): name is string => typeof name === "string"))
+    : []
+  const section = typeof body.section === "string" ? body.section : undefined
+  const result = await runCompletionForUser({
+    userId: user.id,
+    env: c.env,
+    system: IMPORT_EXTRACT_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: importExtractPrompt({ knownNames: known, mode, section, text }),
+      },
+    ],
+    disableThinking: true,
+    maxTokens: IMPORT_EXTRACT_MAX_TOKENS,
+  })
+  if (isCompletionFailure(result)) {
+    return c.json(
+      { error: result.error, ...(result.code ? { code: result.code } : {}) },
+      result.status
+    )
+  }
+  const extract = parseImportExtract(result.message)
+  if (!extract) {
+    return c.json({ ...emptyImportExtract(), parsed: false })
+  }
+  return c.json({ ...extract, parsed: true })
 })
 
 export type { ChatMessage, CompletionResult }

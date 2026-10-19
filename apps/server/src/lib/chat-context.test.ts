@@ -43,6 +43,7 @@ describe("assembleChatPrompt", () => {
       title: "长夜",
       type: "novel",
       genre: "奇幻",
+      outline: "林昭要找回那把剑。",
       characters: [{ name: "林昭", text: `剑客${"甲".repeat(600)}` }],
       locations: [{ name: "江城", text: "江边的城" }],
       lore: [{ name: "潮汐", text: "每晚涨一次" }],
@@ -50,10 +51,13 @@ describe("assembleChatPrompt", () => {
       currentChapter: { title: "第三章", text: "他推开了门。" },
       previousChapters: [{ title: "第二章", text: "雨下了一夜。" }],
       summaries: [{ title: "第一章", text: "林昭离开江城。" }],
+      focus: null,
     })
 
     expect(prompt).toContain("- Title: 长夜 (novel)")
     expect(prompt).toContain("- Genre: 奇幻")
+    expect(prompt).toContain("OUTLINE:")
+    expect(prompt).toContain("林昭要找回那把剑。")
     expect(prompt).not.toContain("- Description:")
     expect(prompt).toContain("林昭 — 剑客")
     expect(prompt).toContain("甲".repeat(600))
@@ -75,6 +79,7 @@ describe("assembleChatPrompt", () => {
       title: "长夜",
       type: "novel",
       genre: null,
+      outline: null,
       characters: [],
       locations: [],
       lore: [],
@@ -82,10 +87,12 @@ describe("assembleChatPrompt", () => {
       currentChapter: null,
       previousChapters: [],
       summaries: [],
+      focus: null,
     })
 
     expect(prompt).not.toContain("CHARACTERS IN THE CURRENT CHAPTER")
     expect(prompt).not.toContain("PLOT THREADS")
     expect(prompt).not.toContain("LOCATIONS")
+    expect(prompt).not.toContain("OUTLINE:")
   })
 })

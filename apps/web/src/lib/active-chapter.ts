@@ -1,9 +1,29 @@
-interface ActiveChapter {
+export type PageFocusKind =
+  | "chapter"
+  | "character"
+  | "location"
+  | "lore"
+  | "none"
+  | "note"
+  | "outline"
+  | "plot"
+
+export interface ActiveChapter {
   chapterId: string | null
+  focusId: string | null
+  focusKind: PageFocusKind
   projectId: string | null
 }
 
-let snapshot: ActiveChapter = { projectId: null, chapterId: null }
+const empty: ActiveChapter = {
+  chapterId: null,
+  focusId: null,
+  focusKind: "none",
+  projectId: null,
+}
+
+let page: ActiveChapter = empty
+let overlay: ActiveChapter | null = null
 const listeners = new Set<() => void>()
 
 function emit() {
@@ -12,19 +32,78 @@ function emit() {
   }
 }
 
+function same(left: ActiveChapter, right: ActiveChapter): boolean {
+  return (
+    left.projectId === right.projectId &&
+    left.chapterId === right.chapterId &&
+    left.focusKind === right.focusKind &&
+    left.focusId === right.focusId
+  )
+}
+
 export function setActiveChapter(projectId: string, chapterId: string | null) {
-  if (snapshot.projectId === projectId && snapshot.chapterId === chapterId) {
+  const next: ActiveChapter = {
+    projectId,
+    chapterId,
+    focusKind: chapterId ? "chapter" : "none",
+    focusId: chapterId,
+  }
+  if (same(page, next)) {
     return
   }
-  snapshot = { projectId, chapterId }
+  page = next
+  emit()
+}
+
+export function setPageFocus(projectId: string, focusKind: PageFocusKind, focusId: string | null) {
+  const next: ActiveChapter = {
+    projectId,
+    chapterId: focusKind === "chapter" ? focusId : null,
+    focusKind,
+    focusId,
+  }
+  if (same(page, next)) {
+    return
+  }
+  page = next
+  emit()
+}
+
+export function clearPageFocus(projectId: string) {
+  if (page.projectId !== projectId) {
+    return
+  }
+  page = empty
   emit()
 }
 
 export function clearActiveChapter(projectId: string) {
-  if (snapshot.projectId !== projectId) {
+  clearPageFocus(projectId)
+}
+
+export function setOverlayFocus(
+  projectId: string,
+  focusKind: PageFocusKind,
+  focusId: string | null
+) {
+  const next: ActiveChapter = {
+    projectId,
+    chapterId: null,
+    focusKind,
+    focusId,
+  }
+  if (overlay && same(overlay, next)) {
     return
   }
-  snapshot = { projectId: null, chapterId: null }
+  overlay = next
+  emit()
+}
+
+export function clearOverlayFocus() {
+  if (!overlay) {
+    return
+  }
+  overlay = null
   emit()
 }
 
@@ -36,5 +115,5 @@ export function subscribeActiveChapter(listener: () => void) {
 }
 
 export function getActiveChapterSnapshot(): ActiveChapter {
-  return snapshot
+  return overlay ?? page
 }

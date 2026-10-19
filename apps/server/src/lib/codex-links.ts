@@ -84,6 +84,67 @@ export async function filterPlotIds(projectId: string, ids: string[]): Promise<s
   return ids.filter((id) => allowed.has(id))
 }
 
+export async function readChapterBindingIds(chapterId: string): Promise<{
+  characterIds: string[]
+  locationIds: string[]
+  plotIds: string[]
+}> {
+  const characters = await db
+    .select({ id: chapterCharacter.characterId })
+    .from(chapterCharacter)
+    .where(eq(chapterCharacter.chapterId, chapterId))
+  const locations = await db
+    .select({ id: chapterLocation.locationId })
+    .from(chapterLocation)
+    .where(eq(chapterLocation.chapterId, chapterId))
+  const plots = await db
+    .select({ id: plotPointChapter.plotPointId })
+    .from(plotPointChapter)
+    .where(eq(plotPointChapter.chapterId, chapterId))
+  return {
+    characterIds: characters.map((row) => row.id),
+    locationIds: locations.map((row) => row.id),
+    plotIds: plots.map((row) => row.id),
+  }
+}
+
+export async function replaceChapterBindings(
+  projectId: string,
+  chapterId: string,
+  requested: { characterIds: string[]; locationIds: string[]; plotIds: string[] }
+) {
+  const characterIds = await filterCharacterIds(projectId, requested.characterIds)
+  const locationIds = await filterLocationIds(projectId, requested.locationIds)
+  const plotIds = await filterPlotIds(projectId, requested.plotIds)
+  await db.delete(chapterCharacter).where(eq(chapterCharacter.chapterId, chapterId))
+  await db.delete(chapterLocation).where(eq(chapterLocation.chapterId, chapterId))
+  await db.delete(plotPointChapter).where(eq(plotPointChapter.chapterId, chapterId))
+  if (characterIds.length > 0) {
+    await db.insert(chapterCharacter).values(
+      characterIds.map((characterId) => ({
+        chapterId,
+        characterId,
+      }))
+    )
+  }
+  if (locationIds.length > 0) {
+    await db.insert(chapterLocation).values(
+      locationIds.map((locationId) => ({
+        chapterId,
+        locationId,
+      }))
+    )
+  }
+  if (plotIds.length > 0) {
+    await db.insert(plotPointChapter).values(
+      plotIds.map((plotPointId) => ({
+        chapterId,
+        plotPointId,
+      }))
+    )
+  }
+}
+
 export async function attachChapterBindings(
   projectId: string,
   chapterId: string,

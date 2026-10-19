@@ -3,24 +3,60 @@ import type { ChapterEdit } from "./chat-write"
 
 export const WRITER_DECLINED = "作者拒绝了这次写入。不要改稿，可以改口或另提一版。"
 
+export type WriteTarget =
+  | "chapter"
+  | "character"
+  | "location"
+  | "lore"
+  | "note"
+  | "outline"
+  | "plot"
+
+export type WriteToolName =
+  | "append_to_chapter"
+  | "append_to_entry"
+  | "append_to_outline"
+  | "create_entry"
+  | "delete_entry"
+  | "replace_in_chapter"
+  | "replace_in_entry"
+  | "replace_in_outline"
+
+const WRITE_TOOL_NAMES: readonly WriteToolName[] = [
+  "append_to_chapter",
+  "append_to_entry",
+  "append_to_outline",
+  "create_entry",
+  "delete_entry",
+  "replace_in_chapter",
+  "replace_in_entry",
+  "replace_in_outline",
+]
+
+export function isWriteToolName(value: unknown): value is WriteToolName {
+  return WRITE_TOOL_NAMES.some((name) => name === value)
+}
+
 export interface WriteProposal {
-  action: "append" | "replace"
+  action: "append" | "create" | "delete" | "replace"
   arguments: string
   chapterId: string
   chapterTitle: string
   find: string
   id: string
-  name: "append_to_chapter" | "replace_in_chapter"
+  name: WriteToolName
   preview: string
+  target: WriteTarget
 }
 
 export interface PublicWriteProposal {
-  action: "append" | "replace"
+  action: "append" | "create" | "delete" | "replace"
   chapterId: string
   chapterTitle: string
   find: string
   id: string
   preview: string
+  target: WriteTarget
 }
 
 export interface ResolvedCall {
@@ -53,6 +89,7 @@ export function presentProposal(proposal: WriteProposal): PublicWriteProposal {
     find: proposal.find,
     id: proposal.id,
     preview: proposal.preview,
+    target: proposal.target,
   }
 }
 
@@ -72,13 +109,35 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
+function readTarget(value: unknown, name: WriteToolName): WriteTarget | null {
+  if (
+    value === "chapter" ||
+    value === "character" ||
+    value === "location" ||
+    value === "lore" ||
+    value === "note" ||
+    value === "outline" ||
+    value === "plot"
+  ) {
+    return value
+  }
+  if (name === "append_to_chapter" || name === "replace_in_chapter") {
+    return "chapter"
+  }
+  return null
+}
+
 function readProposal(value: unknown): WriteProposal | null {
-  if (!isRecord(value)) {
+  if (!(isRecord(value) && isWriteToolName(value.name))) {
     return null
   }
+  const target = readTarget(value.target, value.name)
   if (
-    (value.action !== "append" && value.action !== "replace") ||
-    (value.name !== "append_to_chapter" && value.name !== "replace_in_chapter") ||
+    (value.action !== "append" &&
+      value.action !== "create" &&
+      value.action !== "delete" &&
+      value.action !== "replace") ||
+    !target ||
     typeof value.arguments !== "string" ||
     typeof value.chapterId !== "string" ||
     typeof value.chapterTitle !== "string" ||
@@ -97,6 +156,7 @@ function readProposal(value: unknown): WriteProposal | null {
     id: value.id,
     name: value.name,
     preview: value.preview,
+    target,
   }
 }
 

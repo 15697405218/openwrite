@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { ChapterBindingsDialog } from "@/components/chapter-bindings-dialog"
 import { ChapterCreateDialog } from "@/components/chapter-create-dialog"
 import { ChapterList } from "@/components/chapter-list"
 import { GuidedTour, type TourStep, useTour } from "@/components/guided-tour"
@@ -252,6 +253,7 @@ function WriteInterface() {
     [projectId, selectedChapterId]
   )
 
+  const [bindingsOpen, setBindingsOpen] = useState(false)
   const [createChapterOpen, setCreateChapterOpen] = useState(false)
 
   const summarizeChapter = useMutation({
@@ -309,6 +311,12 @@ function WriteInterface() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <ChapterBindingsDialog
+          chapterId={selectedChapterId ?? ""}
+          onOpenChange={setBindingsOpen}
+          open={bindingsOpen && Boolean(selectedChapterId)}
+          projectId={projectId}
+        />
         <ChapterCreateDialog
           onCreated={(result) => {
             queryClient.invalidateQueries({ queryKey: ["chapters", projectId] })
@@ -340,15 +348,25 @@ function WriteInterface() {
                 {chapters.find((chapter) => chapter.id === selectedChapterId)?.summary?.trim() ||
                   m.chapters.noSummary}
               </p>
-              <Button
-                disabled={summarizeChapter.isPending}
-                onClick={() => summarizeChapter.mutate()}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {summarizeChapter.isPending ? m.chapters.summarizing : m.chapters.generateSummary}
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  onClick={() => setBindingsOpen(true)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {m.chapters.editBindings}
+                </Button>
+                <Button
+                  disabled={summarizeChapter.isPending}
+                  onClick={() => summarizeChapter.mutate()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {summarizeChapter.isPending ? m.chapters.summarizing : m.chapters.generateSummary}
+                </Button>
+              </div>
             </div>
             <div className="flex-1 overflow-auto" data-tour="editor">
               {contentLoading || !doc ? (

@@ -39,7 +39,7 @@ export function BindingChecklist({
   const visible =
     needle.length === 0
       ? options
-      : options.filter((option) => option.label.toLowerCase().includes(needle))
+      : options.filter((option) => (option.label ?? "").toLowerCase().includes(needle))
 
   const toggle = (id: string, checked: boolean) => {
     if (checked) {

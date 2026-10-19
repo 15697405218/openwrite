@@ -13,6 +13,23 @@ interface WriteApprovalProps {
   preface: string
 }
 
+function proposalHeading(
+  action: WriteProposal["action"],
+  title: string,
+  labels: { append: string; create: string; delete: string; replace: string }
+): string {
+  if (action === "create") {
+    return fill(labels.create, { title })
+  }
+  if (action === "delete") {
+    return fill(labels.delete, { title })
+  }
+  if (action === "append") {
+    return fill(labels.append, { title })
+  }
+  return fill(labels.replace, { title })
+}
+
 function choiceLabel(choice: boolean | undefined, allow: string, reject: string): string | null {
   if (choice === true) {
     return allow
@@ -72,10 +89,14 @@ export function WriteApproval({
       )}
       {pending.map((proposal) => {
         const chosen = choiceLabel(choices[proposal.id], m.ai.writeAllow, m.ai.writeReject)
-        const title =
-          proposal.action === "append"
-            ? fill(m.ai.writeAppend, { title: proposal.chapterTitle })
-            : fill(m.ai.writeReplace, { title: proposal.chapterTitle })
+        const documentTitle =
+          proposal.target === "outline" ? m.outline.title : proposal.chapterTitle
+        const title = proposalHeading(proposal.action, documentTitle, {
+          append: m.ai.writeAppend,
+          create: m.ai.writeCreate,
+          delete: m.ai.writeDelete,
+          replace: m.ai.writeReplace,
+        })
         return (
           <div className="rounded-lg border bg-card px-3 py-3 text-sm" key={proposal.id}>
             <p className="font-medium">{title}</p>
@@ -106,17 +127,18 @@ export function WriteApproval({
                 >
                   {m.ai.writeReject}
                 </Button>
-                {proposal.chapterId === currentChapterId && (
-                  <Button
-                    disabled={busy}
-                    onClick={() => choose(proposal.id, true, true)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    {m.ai.writeRemember}
-                  </Button>
-                )}
+                {(proposal.target === undefined || proposal.target === "chapter") &&
+                  proposal.chapterId === currentChapterId && (
+                    <Button
+                      disabled={busy}
+                      onClick={() => choose(proposal.id, true, true)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {m.ai.writeRemember}
+                    </Button>
+                  )}
               </div>
             )}
           </div>

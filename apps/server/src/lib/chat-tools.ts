@@ -7,6 +7,8 @@ import {
   character,
   location,
   lore,
+  note,
+  outlineNode,
   plotPoint,
   volume,
   work,
@@ -139,6 +141,62 @@ async function locationChapters(locationId: string) {
   return rows.map((row) => row.chapterId)
 }
 
+async function readOutline(projectId: string) {
+  const row = await db
+    .select({ id: outlineNode.id, body: outlineNode.body })
+    .from(outlineNode)
+    .where(eq(outlineNode.projectId, projectId))
+    .get()
+  if (!row) {
+    return { id: null, text: "" }
+  }
+  return { id: row.id, text: (row.body ?? "").slice(0, READ_CHARS) }
+}
+
+async function listNotes(projectId: string) {
+  return await db
+    .select({ id: note.id, title: note.title })
+    .from(note)
+    .where(eq(note.projectId, projectId))
+    .orderBy(asc(note.createdAt))
+}
+
+async function readNote(projectId: string, noteId: string) {
+  const row = await db
+    .select({ id: note.id, title: note.title, body: note.body })
+    .from(note)
+    .where(and(eq(note.id, noteId), eq(note.projectId, projectId)))
+    .get()
+  if (!row) {
+    return { error: "not_found" }
+  }
+  return {
+    id: row.id,
+    title: row.title,
+    text: (row.body ?? "").slice(0, READ_CHARS),
+  }
+}
+
+async function searchNotes(projectId: string, query: string) {
+  const rows = await db
+    .select({ id: note.id, title: note.title, body: note.body })
+    .from(note)
+    .where(eq(note.projectId, projectId))
+    .orderBy(asc(note.createdAt))
+  return searchSnippets(
+    rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      text: `${row.title}\n${row.body ?? ""}`,
+    })),
+    query
+  ).map((hit) => ({
+    excerpt: hit.excerpt,
+    noteId: hit.chapterId,
+    title: hit.title,
+  }))
+}
+
 async function searchChapters(projectId: string, query: string) {
   const rows = await db
     .select({ id: chapter.id, title: chapter.title, content: chapter.content })
@@ -227,7 +285,10 @@ async function chapterTool(
     if (!query) {
       return missing("query")
     }
-    return await searchChapters(projectId, query)
+    return {
+      chapters: await searchChapters(projectId, query),
+      notes: await searchNotes(projectId, query),
+    }
   }
   return null
 }
@@ -280,6 +341,27 @@ async function codexTool(
   return null
 }
 
+async function noteTool(
+  name: string,
+  projectId: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
+  if (name === "read_outline") {
+    return await readOutline(projectId)
+  }
+  if (name === "list_notes") {
+    return await listNotes(projectId)
+  }
+  if (name === "read_note") {
+    const noteId = argString(args, "noteId")
+    if (!noteId) {
+      return missing("noteId")
+    }
+    return await readNote(projectId, noteId)
+  }
+  return null
+}
+
 export async function executeChatTool(options: {
   arguments: string
   edits?: ChapterEdit[]
@@ -316,6 +398,10 @@ export async function executeChatTool(options: {
   const fromCodex = await codexTool(options.name, options.projectId, args)
   if (fromCodex) {
     return toolJson(fromCodex)
+  }
+  const fromNote = await noteTool(options.name, options.projectId, args)
+  if (fromNote) {
+    return toolJson(fromNote)
   }
   return toolJson({ error: "unknown_tool" })
 }

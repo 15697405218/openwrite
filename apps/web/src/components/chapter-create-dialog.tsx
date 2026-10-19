@@ -198,7 +198,7 @@ export function ChapterCreateDialog({
               hint=""
               label={m.codex.pages.plot.title}
               onChange={setPlotIds}
-              options={plots.map((plot) => ({ id: plot.id, label: plot.title }))}
+              options={plots.map((plot) => ({ id: plot.id, label: plot.title ?? "" }))}
               searchPlaceholder={m.codex.searchBindings}
               selectedIds={plotIds}
             />

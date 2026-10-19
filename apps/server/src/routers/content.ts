@@ -4,7 +4,12 @@ import { db } from "../db"
 import { chapter, project, volume, work } from "../db/schema"
 import { generateChapterSummary } from "../lib/chapter-summary"
 import { buildReorderUpdates, nextChapterTitle, workTypeForProject } from "../lib/chapters"
-import { attachChapterBindings, readIdList } from "../lib/codex-links"
+import {
+  attachChapterBindings,
+  readChapterBindingIds,
+  readIdList,
+  replaceChapterBindings,
+} from "../lib/codex-links"
 import { isStaleContentWrite, secondResolutionNow } from "../lib/optimistic-concurrency"
 import { countWordsInHtml } from "../lib/word-count"
 import { recordWritingActivity } from "../lib/writing-sessions"
@@ -380,8 +385,10 @@ contentRouter.post(
     let characterIds: string[] = []
     let locationIds: string[] = []
     let plotIds: string[] = []
+    let skipSummary = false
     try {
       const body = await c.req.json()
+      skipSummary = body.skipSummary === true
       title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : undefined
       requestedVolumeId =
         typeof body.volumeId === "string" && body.volumeId.trim() ? body.volumeId.trim() : undefined
@@ -432,17 +439,34 @@ contentRouter.post(
     await attachChapterBindings(projectId, id, { characterIds, locationIds, plotIds })
 
     let previousSummary = false
-    try {
-      previousSummary = await summarizePreviousChapter(c, projectId, id)
-    } catch {
-      previousSummary = false
+    if (!skipSummary) {
+      try {
+        previousSummary = await summarizePreviousChapter(c, projectId, id)
+      } catch {
+        previousSummary = false
+      }
     }
 
     return c.json({ success: true, id, order, previousSummary }, 201)
   }
 )
 
-// Update chapter metadata (title, summary, status)
+contentRouter.get(
+  "/projects/:projectId/chapters/:chapterId/bindings",
+  requireAuth,
+  verifyProjectAccess,
+  async (c: AppContext) => {
+    const projectId = requiredParam(c, "projectId")
+    const chapterId = requiredParam(c, "chapterId")
+    const existing = await getChapterInProject(projectId, chapterId)
+    if (!existing) {
+      return c.json({ error: "Chapter not found" }, 404)
+    }
+    return c.json(await readChapterBindingIds(chapterId))
+  }
+)
+
+// Update chapter metadata (title, summary, status) and, when sent, its links.
 contentRouter.put(
   "/projects/:projectId/chapters/:chapterId",
   requireAuth,
@@ -470,6 +494,13 @@ contentRouter.put(
     }
 
     await db.update(chapter).set(updates).where(eq(chapter.id, chapterId))
+
+    const characterIds = readIdList(body.characterIds)
+    const locationIds = readIdList(body.locationIds)
+    const plotIds = readIdList(body.plotIds)
+    if (characterIds && locationIds && plotIds) {
+      await replaceChapterBindings(projectId, chapterId, { characterIds, locationIds, plotIds })
+    }
 
     return c.json({ success: true })
   }

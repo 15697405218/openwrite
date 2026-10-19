@@ -67,6 +67,8 @@ export type {
 export { createLoreApi, loreApi } from "./lore"
 export type { StoryNote, StoryNoteInput } from "./notes"
 export { notesApi } from "./notes"
+export type { ProjectOutline } from "./outline"
+export { outlineApi } from "./outline"
 export type {
   CreatePlotData,
   PlotThread,
@@ -97,6 +99,7 @@ import { graphApi } from "./graph"
 import { locationsApi } from "./locations"
 import { loreApi } from "./lore"
 import { notesApi } from "./notes"
+import { outlineApi } from "./outline"
 import { plotApi } from "./plot"
 import { novelApi, projectApi } from "./projects"
 import { volumesApi } from "./volumes"
@@ -116,6 +119,7 @@ export const api = {
   chapters: chaptersApi,
   content: contentApi,
   notes: notesApi,
+  outline: outlineApi,
   volumes: volumesApi,
   characters: charactersApi,
   locations: locationsApi,

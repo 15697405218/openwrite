@@ -22,6 +22,7 @@ import { aiProvidersRouter } from "./ai-providers"
 import { contentRouter } from "./content"
 import graphRouter from "./graph"
 import { notesRouter } from "./notes"
+import { outlineRouter } from "./outline"
 
 interface Env {
   BETTER_AUTH_SECRET: string
@@ -1114,6 +1115,9 @@ router.route("/", contentRouter)
 
 // Mount notes stored on the project
 router.route("/", notesRouter)
+
+// Mount the book, volume, and detailed outlines
+router.route("/", outlineRouter)
 
 // Mount graph router
 router.route("/", graphRouter)

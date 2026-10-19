@@ -8,6 +8,16 @@
 import type { ChapterEdit } from "@/lib/chapter-edits"
 import { apiCall } from "./base"
 
+export interface ImportExtractResult {
+  chapterTitles: string[]
+  characters: { description: string; name: string }[]
+  locations: { description: string; name: string }[]
+  lore: { description: string; name: string }[]
+  mentions: { characters: string[]; locations: string[]; plot: string[] }
+  parsed: boolean
+  plot: { description: string; title: string }[]
+}
+
 export interface AiChatMessage {
   content: string
   role: "user" | "assistant"
@@ -21,12 +31,13 @@ export interface StoredChatMessage {
 }
 
 export interface WriteProposal {
-  action: "append" | "replace"
+  action: "append" | "create" | "delete" | "replace"
   chapterId: string
   chapterTitle: string
   find: string
   id: string
   preview: string
+  target?: "chapter" | "character" | "location" | "lore" | "note" | "outline" | "plot"
 }
 
 export interface AiChatRequest {
@@ -35,10 +46,10 @@ export interface AiChatRequest {
   chapterHtml?: string
   chapterId?: string
   content: string
+  focus?: string
+  focusId?: string
   model?: string
-  previousChapterCount?: number
   projectId: string
-  summaryChapterIds?: string[]
 }
 
 export interface AiChatResponse {
@@ -57,6 +68,8 @@ export interface AiDecideRequest {
   chapterHtml?: string
   chapterId?: string
   decisions: { approved: boolean; id: string }[]
+  focus?: string
+  focusId?: string
   projectId: string
 }
 
@@ -96,6 +109,8 @@ export const aiApi = {
     allowCurrentChapter?: boolean
     chapterHtml?: string
     chapterId?: string
+    focus?: string
+    focusId?: string
     projectId: string
   }): Promise<AiChatResponse> {
     return (await apiCall("/api/ai/chat/continue", {
@@ -109,6 +124,18 @@ export const aiApi = {
       method: "POST",
       body: JSON.stringify(data),
     })) as AiChatResponse
+  },
+
+  async extractImport(data: {
+    knownNames: string[]
+    mode: "manuscript" | "notes" | "settings"
+    section?: string
+    text: string
+  }): Promise<ImportExtractResult> {
+    return (await apiCall("/api/ai/import-extract", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })) as ImportExtractResult
   },
 
   async complete(data: AiCompleteRequest): Promise<{ text: string }> {

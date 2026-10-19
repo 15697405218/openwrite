@@ -204,8 +204,13 @@ async function classifyCall(
       }),
     }
   }
+  const chapterWrite =
+    described.proposal.name === "append_to_chapter" ||
+    described.proposal.name === "replace_in_chapter"
   const allowed =
-    options.allowCurrentChapter === true && described.proposal.chapterId === options.openChapterId
+    options.allowCurrentChapter === true &&
+    chapterWrite &&
+    described.proposal.chapterId === options.openChapterId
   if (!allowed) {
     return described
   }

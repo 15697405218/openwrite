@@ -1,28 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { Bot, Send, Settings, SlidersHorizontal, User } from "lucide-react"
+import { Bot, Send, Settings, User } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { BindingChecklist } from "@/components/binding-checklist"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { WriteApproval } from "@/components/write-approval"
-import { fill, useLocale } from "@/i18n/locale"
+import { useLocale } from "@/i18n/locale"
 import { getActiveChapterSnapshot, subscribeActiveChapter } from "@/lib/active-chapter"
 import { getActiveEditor } from "@/lib/active-editor"
-import { ApiError, aiApi, api, type StoredChatMessage } from "@/lib/api"
+import { ApiError, aiApi, type StoredChatMessage } from "@/lib/api"
 import { applyChapterEdits } from "@/lib/chapter-edits"
 import { cn } from "@/lib/utils"
 
@@ -38,7 +29,6 @@ interface AIChatContentProps {
   projectId?: string
 }
 
-const MAX_PREVIOUS_CHAPTERS = 30
 const MAX_CHAPTER_TEXT = 100_000
 const MAX_CHAPTER_HTML = 1_000_000
 
@@ -66,9 +56,6 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
   const [input, setInput] = useState("")
   const [needsProvider, setNeedsProvider] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
-  const [contextOpen, setContextOpen] = useState(false)
-  const [previousChapterCount, setPreviousChapterCount] = useState(3)
-  const [summaryChapterIds, setSummaryChapterIds] = useState<string[]>([])
   const [directChapterId, setDirectChapterId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -78,15 +65,23 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
     getActiveChapterSnapshot,
     getActiveChapterSnapshot
   )
-  const currentChapterId = activeChapter.projectId === projectId ? activeChapter.chapterId : null
+  const here = activeChapter.projectId === projectId ? activeChapter : null
+  const currentChapterId = here?.focusKind === "chapter" ? here.focusId : null
+  const focusKind = here?.focusKind ?? "none"
+  const focusId = here?.focusId ?? undefined
   const allowDirect = directChapterId !== null && directChapterId === currentChapterId
 
-  const { data: chapters = [] } = useQuery({
-    queryKey: ["chapters", projectId],
-    queryFn: () => api.chapters.list(projectId ?? ""),
-    enabled: Boolean(projectId),
-  })
-  const currentChapter = chapters.find((chapter) => chapter.id === currentChapterId) ?? null
+  const refreshOpenDocuments = () => {
+    if (!projectId) {
+      return
+    }
+    queryClient.invalidateQueries({ queryKey: ["outline", projectId] })
+    queryClient.invalidateQueries({ queryKey: ["notes", projectId] })
+    queryClient.invalidateQueries({ queryKey: ["characters", projectId] })
+    queryClient.invalidateQueries({ queryKey: ["locations", projectId] })
+    queryClient.invalidateQueries({ queryKey: ["lore", projectId] })
+    queryClient.invalidateQueries({ queryKey: ["plot", projectId] })
+  }
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -112,9 +107,9 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         allowCurrentChapter: allowDirect,
         content,
         projectId,
+        focus: focusKind,
+        focusId,
         chapterId: currentChapterId ?? undefined,
-        previousChapterCount,
-        summaryChapterIds,
         chapterContent,
         chapterHtml,
       })
@@ -148,6 +143,7 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         preface: response.preface ?? "",
       })
       applyChapterEdits(response.edits ?? [])
+      refreshOpenDocuments()
     },
     onError: (error, _content, context) => {
       if (context?.previous) {
@@ -180,6 +176,8 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         chapterHtml,
         chapterId: currentChapterId ?? undefined,
         decisions: decision.decisions,
+        focus: focusKind,
+        focusId,
         projectId,
       })
     },
@@ -190,6 +188,7 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         preface: response.preface ?? "",
       })
       applyChapterEdits(response.edits ?? [])
+      refreshOpenDocuments()
     },
     onError: (error) => {
       if (error instanceof ApiError && error.edits.length > 0) {
@@ -216,6 +215,8 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         allowCurrentChapter: allowDirect,
         chapterHtml,
         chapterId: currentChapterId ?? undefined,
+        focus: focusKind,
+        focusId,
         projectId,
       })
     },
@@ -227,6 +228,7 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
         preface: response.preface ?? "",
       })
       applyChapterEdits(response.edits ?? [])
+      refreshOpenDocuments()
     },
     onError: (error) => {
       resumeStarted.current = false
@@ -436,16 +438,6 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
             </Label>
           </div>
         )}
-        <Button
-          className="mb-2 w-full"
-          onClick={() => setContextOpen(true)}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          <SlidersHorizontal className="mr-2 h-4 w-4" />
-          {m.ai.contextButton}
-        </Button>
         <form className="flex gap-2" onSubmit={handleSubmit}>
           <Input
             className="flex-1"
@@ -465,62 +457,6 @@ export function AIChatContent({ onInsertText, projectId }: AIChatContentProps) {
           </Button>
         </form>
       </div>
-
-      <Dialog onOpenChange={setContextOpen} open={contextOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{m.ai.contextTitle}</DialogTitle>
-            <DialogDescription>{m.ai.contextHint}</DialogDescription>
-          </DialogHeader>
-          <p className="text-sm">
-            {currentChapter
-              ? fill(m.ai.currentChapter, { title: currentChapter.title })
-              : m.ai.noChapter}
-          </p>
-          <div className="space-y-2">
-            <Label htmlFor="previous-chapter-count">{m.ai.previousCount}</Label>
-            <Input
-              id="previous-chapter-count"
-              max={MAX_PREVIOUS_CHAPTERS}
-              min={0}
-              onChange={(event) => {
-                const parsed = Number.parseInt(event.target.value, 10)
-                if (Number.isNaN(parsed)) {
-                  setPreviousChapterCount(0)
-                  return
-                }
-                setPreviousChapterCount(Math.min(MAX_PREVIOUS_CHAPTERS, Math.max(0, parsed)))
-              }}
-              type="number"
-              value={previousChapterCount}
-            />
-            <p className="text-muted-foreground text-xs">{m.ai.previousCountHint}</p>
-          </div>
-          <BindingChecklist
-            emptyLabel={m.chapters.empty}
-            group="chat-summaries"
-            hint=""
-            label={m.ai.summaryPick}
-            onChange={setSummaryChapterIds}
-            options={chapters.map((chapter) => ({
-              id: chapter.id,
-              label: chapter.title,
-              disabled: !(chapter.summary && chapter.summary.trim().length > 0),
-              hint:
-                chapter.summary && chapter.summary.trim().length > 0
-                  ? undefined
-                  : m.ai.summaryMissing,
-            }))}
-            searchPlaceholder={m.codex.searchBindings}
-            selectedIds={summaryChapterIds}
-          />
-          <DialogFooter>
-            <Button onClick={() => setContextOpen(false)} type="button">
-              {m.ai.contextDone}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

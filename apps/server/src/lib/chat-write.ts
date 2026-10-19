@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm"
 import { db } from "../db"
 import { chapter, chatToolReceipt, project, work } from "../db/schema"
 import type { WriteProposal } from "./chat-approval"
+import { describeEntryWrite, runEntryWrite } from "./chat-write-entry"
 import { htmlToPlainText } from "./html-text"
 import { secondResolutionNow } from "./optimistic-concurrency"
 import { countWordsInHtml } from "./word-count"
@@ -167,6 +168,10 @@ export async function describeWrite(options: {
   openChapterId?: string
   projectId: string
 }): Promise<{ content: string } | { proposal: WriteProposal } | null> {
+  const entry = await describeEntryWrite(options)
+  if (entry) {
+    return entry
+  }
   if (options.name !== "append_to_chapter" && options.name !== "replace_in_chapter") {
     return null
   }
@@ -194,6 +199,7 @@ export async function describeWrite(options: {
         id: options.id,
         name: "append_to_chapter",
         preview: text.slice(0, PREVIEW_CHARS),
+        target: "chapter",
       },
     }
   }
@@ -223,6 +229,7 @@ export async function describeWrite(options: {
       id: options.id,
       name: "replace_in_chapter",
       preview: replacement.slice(0, PREVIEW_CHARS),
+      target: "chapter",
     },
   }
 }
@@ -237,6 +244,10 @@ export async function runWriteTool(options: {
   receiptId?: string
   threadId?: string
 }): Promise<string | null> {
+  const entry = await runEntryWrite(options)
+  if (entry) {
+    return entry
+  }
   if (options.name !== "append_to_chapter" && options.name !== "replace_in_chapter") {
     return null
   }

@@ -24,6 +24,7 @@ import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settin
 import { Route as DashboardProjectsRouteImport } from './routes/dashboard/projects'
 import { Route as DashboardAiRouteImport } from './routes/dashboard/ai'
 import { Route as ProjectsProjectIdWriteRouteImport } from './routes/projects/$projectId/write'
+import { Route as ProjectsProjectIdOutlineRouteImport } from './routes/projects/$projectId/outline'
 import { Route as ProjectsProjectIdCodexRouteImport } from './routes/projects/$projectId/codex'
 import { Route as ProjectsProjectIdCanvasRouteImport } from './routes/projects/$projectId/canvas'
 import { Route as DashboardProjectProjectIdRouteImport } from './routes/dashboard/project/$projectId'
@@ -108,6 +109,12 @@ const ProjectsProjectIdWriteRoute = ProjectsProjectIdWriteRouteImport.update({
   path: '/write',
   getParentRoute: () => ProjectsProjectIdRoute,
 } as any)
+const ProjectsProjectIdOutlineRoute =
+  ProjectsProjectIdOutlineRouteImport.update({
+    id: '/outline',
+    path: '/outline',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdCodexRoute = ProjectsProjectIdCodexRouteImport.update({
   id: '/codex',
   path: '/codex',
@@ -173,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/project/$projectId': typeof DashboardProjectProjectIdRouteWithChildren
   '/projects/$projectId/canvas': typeof ProjectsProjectIdCanvasRoute
   '/projects/$projectId/codex': typeof ProjectsProjectIdCodexRouteWithChildren
+  '/projects/$projectId/outline': typeof ProjectsProjectIdOutlineRoute
   '/projects/$projectId/write': typeof ProjectsProjectIdWriteRoute
   '/dashboard/project/$projectId/characters': typeof DashboardProjectProjectIdCharactersRoute
   '/dashboard/project/$projectId/outline': typeof DashboardProjectProjectIdOutlineRoute
@@ -196,6 +204,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/projects/$projectId/canvas': typeof ProjectsProjectIdCanvasRoute
   '/projects/$projectId/codex': typeof ProjectsProjectIdCodexRouteWithChildren
+  '/projects/$projectId/outline': typeof ProjectsProjectIdOutlineRoute
   '/projects/$projectId/write': typeof ProjectsProjectIdWriteRoute
   '/dashboard/project/$projectId/characters': typeof DashboardProjectProjectIdCharactersRoute
   '/dashboard/project/$projectId/outline': typeof DashboardProjectProjectIdOutlineRoute
@@ -222,6 +231,7 @@ export interface FileRoutesById {
   '/dashboard/project/$projectId': typeof DashboardProjectProjectIdRouteWithChildren
   '/projects/$projectId/canvas': typeof ProjectsProjectIdCanvasRoute
   '/projects/$projectId/codex': typeof ProjectsProjectIdCodexRouteWithChildren
+  '/projects/$projectId/outline': typeof ProjectsProjectIdOutlineRoute
   '/projects/$projectId/write': typeof ProjectsProjectIdWriteRoute
   '/dashboard/project/$projectId/characters': typeof DashboardProjectProjectIdCharactersRoute
   '/dashboard/project/$projectId/outline': typeof DashboardProjectProjectIdOutlineRoute
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/dashboard/project/$projectId'
     | '/projects/$projectId/canvas'
     | '/projects/$projectId/codex'
+    | '/projects/$projectId/outline'
     | '/projects/$projectId/write'
     | '/dashboard/project/$projectId/characters'
     | '/dashboard/project/$projectId/outline'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/projects/$projectId/canvas'
     | '/projects/$projectId/codex'
+    | '/projects/$projectId/outline'
     | '/projects/$projectId/write'
     | '/dashboard/project/$projectId/characters'
     | '/dashboard/project/$projectId/outline'
@@ -297,6 +309,7 @@ export interface FileRouteTypes {
     | '/dashboard/project/$projectId'
     | '/projects/$projectId/canvas'
     | '/projects/$projectId/codex'
+    | '/projects/$projectId/outline'
     | '/projects/$projectId/write'
     | '/dashboard/project/$projectId/characters'
     | '/dashboard/project/$projectId/outline'
@@ -424,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdWriteRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/outline': {
+      id: '/projects/$projectId/outline'
+      path: '/outline'
+      fullPath: '/projects/$projectId/outline'
+      preLoaderRoute: typeof ProjectsProjectIdOutlineRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/codex': {
       id: '/projects/$projectId/codex'
       path: '/codex'
@@ -545,12 +565,14 @@ const ProjectsProjectIdCodexRouteWithChildren =
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdCanvasRoute: typeof ProjectsProjectIdCanvasRoute
   ProjectsProjectIdCodexRoute: typeof ProjectsProjectIdCodexRouteWithChildren
+  ProjectsProjectIdOutlineRoute: typeof ProjectsProjectIdOutlineRoute
   ProjectsProjectIdWriteRoute: typeof ProjectsProjectIdWriteRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
   ProjectsProjectIdCanvasRoute: ProjectsProjectIdCanvasRoute,
   ProjectsProjectIdCodexRoute: ProjectsProjectIdCodexRouteWithChildren,
+  ProjectsProjectIdOutlineRoute: ProjectsProjectIdOutlineRoute,
   ProjectsProjectIdWriteRoute: ProjectsProjectIdWriteRoute,
 }
 

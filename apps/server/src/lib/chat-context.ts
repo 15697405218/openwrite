@@ -33,9 +33,11 @@ export interface ChapterPiece {
 export interface ChatPacket {
   characters: TextPiece[]
   currentChapter: ChapterPiece | null
+  focus: TextPiece | null
   genre: string | null
   locations: TextPiece[]
   lore: TextPiece[]
+  outline: TextPiece | null
   plotThreads: TextPiece[]
   previousChapters: ChapterPiece[]
   summaries: ChapterPiece[]
@@ -46,9 +48,11 @@ export interface ChatPacket {
 export interface ChatPromptInput {
   characters: NamedText[]
   currentChapter: ChapterSnippet | null
+  focus: ChapterSnippet | null
   genre: string | null
   locations: NamedText[]
   lore: NamedText[]
+  outline: string | null
   plotThreads: NamedText[]
   previousChapters: ChapterSnippet[]
   summaries: ChapterSnippet[]
@@ -118,6 +122,14 @@ function pushNamed(lines: string[], heading: string, items: NamedText[]) {
   }
 }
 
+function pushBlock(lines: string[], heading: string, text: string | null) {
+  const body = text?.trim() ?? ""
+  if (body.length === 0) {
+    return
+  }
+  lines.push("", `${heading}:`, body)
+}
+
 function pushChapters(lines: string[], heading: string, chapters: ChapterSnippet[], limit: number) {
   if (chapters.length === 0) {
     return
@@ -139,6 +151,10 @@ export function assembleChatPrompt(input: ChatPromptInput | null): string {
     lines.push(`- Genre: ${input.genre}`)
   }
 
+  pushBlock(lines, "OUTLINE", input.outline)
+  if (input.focus) {
+    pushChapters(lines, "OPEN DOCUMENT:", [input.focus], CURRENT_CHAPTER_CHARS)
+  }
   if (input.currentChapter) {
     pushChapters(lines, "CURRENT CHAPTER:", [input.currentChapter], CURRENT_CHAPTER_CHARS)
   }
@@ -158,9 +174,11 @@ export function toPromptInput(packet: ChatPacket): ChatPromptInput {
     currentChapter: packet.currentChapter
       ? { title: packet.currentChapter.title, text: packet.currentChapter.text }
       : null,
+    focus: packet.focus ? { title: packet.focus.name, text: packet.focus.text } : null,
     genre: packet.genre,
     locations: packet.locations.map((item) => ({ name: item.name, text: item.text })),
     lore: packet.lore.map((item) => ({ name: item.name, text: item.text })),
+    outline: packet.outline && packet.outline.text.trim().length > 0 ? packet.outline.text : null,
     plotThreads: packet.plotThreads.map((item) => ({ name: item.name, text: item.text })),
     previousChapters: packet.previousChapters.map((item) => ({
       title: item.title,

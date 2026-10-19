@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { fill, useLocale } from "@/i18n/locale"
 
+import { clearOverlayFocus, type PageFocusKind, setOverlayFocus } from "@/lib/active-chapter"
 import { api, type Character, type Location, type PlotThread, type StoryNote } from "@/lib/api"
 import { toastCodexSummary } from "@/lib/codex-summary"
 
@@ -47,6 +48,25 @@ interface CodexModalProps {
 }
 
 type CodexEntry = Character | { id: string; name: string; description?: string }
+
+function codexFocusKind(type: string): PageFocusKind | null {
+  if (type === "characters") {
+    return "character"
+  }
+  if (type === "locations") {
+    return "location"
+  }
+  if (type === "lore") {
+    return "lore"
+  }
+  if (type === "plot") {
+    return "plot"
+  }
+  if (type === "notes") {
+    return "note"
+  }
+  return null
+}
 
 function CodexChapterBinding({
   chapters,
@@ -321,7 +341,7 @@ export default function CodexModal({
           icon: FileText,
           entries: plotThreads.map((plot) => ({
             id: plot.id,
-            name: plot.title,
+            name: plot.title ?? "",
             description: plot.description,
           })),
         }
@@ -418,7 +438,7 @@ export default function CodexModal({
   const IconComponent = config.icon
 
   const filteredEntries = config.entries.filter((entry) =>
-    entry.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (entry.name ?? "").toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const handleEntryClick = (entryName: string) => {
@@ -461,6 +481,23 @@ export default function CodexModal({
   }
 
   const selectedEntryData = getSelectedEntryData()
+  const selectedEntryId = selectedEntryData?.id ?? null
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearOverlayFocus()
+      return
+    }
+    const kind = codexFocusKind(selectedType)
+    if (kind && selectedEntryId) {
+      setOverlayFocus(projectId, kind, selectedEntryId)
+    } else {
+      setOverlayFocus(projectId, "none", null)
+    }
+    return () => {
+      clearOverlayFocus()
+    }
+  }, [isOpen, projectId, selectedEntryId, selectedType])
 
   const getEntryIcon = (_entry: CodexEntry, type: string) => {
     switch (type) {

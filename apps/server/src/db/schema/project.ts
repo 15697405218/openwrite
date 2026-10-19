@@ -384,6 +384,23 @@ export const lore = sqliteTable(
   })
 )
 
+// One outline for the whole book.
+export const outlineNode = sqliteTable(
+  "outline_node",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    body: text("body"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => ({
+    projectIdIdx: uniqueIndex("outline_node_project_id_idx").on(table.projectId),
+  })
+)
+
 // Notes kept with the book itself, not a separate store
 export const note = sqliteTable(
   "note",

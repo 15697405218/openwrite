@@ -4,6 +4,7 @@ import { BookOpen, Plus } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { EditProjectDialog } from "@/components/edit-project-dialog"
+import { ImportBookDialog } from "@/components/import-book-dialog"
 import { ProjectCard } from "@/components/project-card"
 import {
   Breadcrumb,
@@ -31,8 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { api, type Project } from "@/lib/api"
 import { useLocale } from "@/i18n/locale"
+import { api, type Project } from "@/lib/api"
 
 export const Route = createFileRoute("/dashboard/projects")({
   component: ProjectsPage,
@@ -146,135 +147,152 @@ function ProjectsPage() {
               <p className="mt-2">{m.projects.manage}</p>
             </div>
 
-            <Dialog onOpenChange={setIsCreateDialogOpen} open={isCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  {m.projects.new}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{m.projects.createTitle}</DialogTitle>
-                  <DialogDescription>{m.projects.createHint}</DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">{m.projects.titleLabel}</Label>
-                    <Input
-                      id="title"
-                      onChange={(e) =>
-                        setCreateForm((prev) => ({ ...prev, title: e.target.value }))
-                      }
-                      placeholder={m.projects.titlePlaceholder}
-                      value={createForm.title}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">{m.projects.description}</Label>
-                    <Textarea
-                      id="description"
-                      onChange={(e) =>
-                        setCreateForm((prev) => ({ ...prev, description: e.target.value }))
-                      }
-                      placeholder={m.projects.descriptionPlaceholder}
-                      value={createForm.description}
-                    />
-                  </div>
+            <div className="flex items-center gap-2">
+              <ImportBookDialog />
+              <Dialog onOpenChange={setIsCreateDialogOpen} open={isCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    {m.projects.new}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{m.projects.createTitle}</DialogTitle>
+                    <DialogDescription>{m.projects.createHint}</DialogDescription>
+                  </DialogHeader>
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="type">{m.projects.type}</Label>
-                      <Select
-                        onValueChange={(
-                          value:
-                            | "novel"
-                            | "trilogy"
-                            | "series"
-                            | "short_story_collection"
-                            | "graphic_novel"
-                            | "screenplay"
-                        ) => setCreateForm((prev) => ({ ...prev, type: value }))}
-                        value={createForm.type}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="novel">{m.projects.types.novel}</SelectItem>
-                          <SelectItem value="trilogy">{m.projects.types.trilogy}</SelectItem>
-                          <SelectItem value="series">{m.projects.types.series}</SelectItem>
-                          <SelectItem value="short_story_collection">
-                            {m.projects.types.short_story_collection}
-                          </SelectItem>
-                          <SelectItem value="graphic_novel">{m.projects.types.graphic_novel}</SelectItem>
-                          <SelectItem value="screenplay">{m.projects.types.screenplay}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="genre">{m.projects.genre}</Label>
-                        <Input
-                          id="genre"
-                          onChange={(e) =>
-                            setCreateForm((prev) => ({ ...prev, genre: e.target.value }))
-                          }
-                          placeholder={m.projects.genrePlaceholder}
-                          value={createForm.genre}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="targetWordCount">{m.projects.targetWords}</Label>
-                        <Input
-                          id="targetWordCount"
-                          onChange={(e) =>
-                            setCreateForm((prev) => ({ ...prev, targetWordCount: e.target.value }))
-                          }
-                          placeholder="50000"
-                          type="number"
-                          value={createForm.targetWordCount}
-                        />
-                      </div>
+                      <Label htmlFor="title">{m.projects.titleLabel}</Label>
+                      <Input
+                        id="title"
+                        onChange={(e) =>
+                          setCreateForm((prev) => ({ ...prev, title: e.target.value }))
+                        }
+                        placeholder={m.projects.titlePlaceholder}
+                        value={createForm.title}
+                      />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="visibility">{m.projects.visibility}</Label>
-                      <Select
-                        onValueChange={(value: "private" | "organization" | "public") =>
-                          setCreateForm((prev) => ({ ...prev, visibility: value }))
+                      <Label htmlFor="description">{m.projects.description}</Label>
+                      <Textarea
+                        id="description"
+                        onChange={(e) =>
+                          setCreateForm((prev) => ({ ...prev, description: e.target.value }))
                         }
-                        value={createForm.visibility}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="private">{m.projects.visibilityOptions.private}</SelectItem>
-                          <SelectItem value="organization">
-                            {m.projects.visibilityOptions.organization}
-                          </SelectItem>
-                          <SelectItem value="public">{m.projects.visibilityOptions.public}</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        placeholder={m.projects.descriptionPlaceholder}
+                        value={createForm.description}
+                      />
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="type">{m.projects.type}</Label>
+                        <Select
+                          onValueChange={(
+                            value:
+                              | "novel"
+                              | "trilogy"
+                              | "series"
+                              | "short_story_collection"
+                              | "graphic_novel"
+                              | "screenplay"
+                          ) => setCreateForm((prev) => ({ ...prev, type: value }))}
+                          value={createForm.type}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="novel">{m.projects.types.novel}</SelectItem>
+                            <SelectItem value="trilogy">{m.projects.types.trilogy}</SelectItem>
+                            <SelectItem value="series">{m.projects.types.series}</SelectItem>
+                            <SelectItem value="short_story_collection">
+                              {m.projects.types.short_story_collection}
+                            </SelectItem>
+                            <SelectItem value="graphic_novel">
+                              {m.projects.types.graphic_novel}
+                            </SelectItem>
+                            <SelectItem value="screenplay">
+                              {m.projects.types.screenplay}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="genre">{m.projects.genre}</Label>
+                          <Input
+                            id="genre"
+                            onChange={(e) =>
+                              setCreateForm((prev) => ({ ...prev, genre: e.target.value }))
+                            }
+                            placeholder={m.projects.genrePlaceholder}
+                            value={createForm.genre}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="targetWordCount">{m.projects.targetWords}</Label>
+                          <Input
+                            id="targetWordCount"
+                            onChange={(e) =>
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                targetWordCount: e.target.value,
+                              }))
+                            }
+                            placeholder="50000"
+                            type="number"
+                            value={createForm.targetWordCount}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="visibility">{m.projects.visibility}</Label>
+                        <Select
+                          onValueChange={(value: "private" | "organization" | "public") =>
+                            setCreateForm((prev) => ({ ...prev, visibility: value }))
+                          }
+                          value={createForm.visibility}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="private">
+                              {m.projects.visibilityOptions.private}
+                            </SelectItem>
+                            <SelectItem value="organization">
+                              {m.projects.visibilityOptions.organization}
+                            </SelectItem>
+                            <SelectItem value="public">
+                              {m.projects.visibilityOptions.public}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <DialogFooter>
-                  <Button onClick={() => setIsCreateDialogOpen(false)} variant="outline">
-                    {m.common.cancel}
-                  </Button>
-                  <Button disabled={createProjectMutation.isPending} onClick={handleCreateProject}>
-                    {createProjectMutation.isPending ? m.projects.creating : m.projects.create}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button onClick={() => setIsCreateDialogOpen(false)} variant="outline">
+                      {m.common.cancel}
+                    </Button>
+                    <Button
+                      disabled={createProjectMutation.isPending}
+                      onClick={handleCreateProject}
+                    >
+                      {createProjectMutation.isPending ? m.projects.creating : m.projects.create}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
 
@@ -290,10 +308,17 @@ function ProjectsPage() {
             <BookOpen className="mx-auto mb-4 h-16 w-16 opacity-50" />
             <h3 className="mb-2 font-medium text-xl">{m.projects.emptyTitle}</h3>
             <p className="mb-6">{m.projects.emptyBody}</p>
-            <Button className="flex items-center gap-2" onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {m.dashboard.createFirst}
-            </Button>
+            <div className="flex items-center justify-center gap-2">
+              <ImportBookDialog />
+              <Button
+                className="flex items-center gap-2"
+                onClick={() => setIsCreateDialogOpen(true)}
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
+                {m.dashboard.createFirst}
+              </Button>
+            </div>
           </div>
         )}
 

@@ -10,6 +10,7 @@ import {
   StateGraph,
 } from "@langchain/langgraph"
 import {
+  isWriteToolName,
   latestOpenHtml,
   type SuspendedTurn,
   WRITER_DECLINED,
@@ -297,7 +298,13 @@ async function planCall(
   if (!described || "content" in described) {
     return described ? { call, content: described.content } : { call }
   }
-  const allowed = run.allowCurrentChapter && described.proposal.chapterId === state.openChapterId
+  const chapterWrite =
+    described.proposal.name === "append_to_chapter" ||
+    described.proposal.name === "replace_in_chapter"
+  const allowed =
+    Boolean(run.allowCurrentChapter) &&
+    chapterWrite &&
+    described.proposal.chapterId === state.openChapterId
   if (!allowed) {
     return { call, proposal: described.proposal }
   }
@@ -467,8 +474,11 @@ function readEdits(value: unknown): ChapterEdit[] {
 function isProposal(value: unknown): value is WriteProposal {
   return (
     isRecord(value) &&
-    (value.action === "append" || value.action === "replace") &&
-    (value.name === "append_to_chapter" || value.name === "replace_in_chapter") &&
+    (value.action === "append" ||
+      value.action === "create" ||
+      value.action === "delete" ||
+      value.action === "replace") &&
+    isWriteToolName(value.name) &&
     typeof value.arguments === "string" &&
     typeof value.chapterId === "string" &&
     typeof value.chapterTitle === "string" &&

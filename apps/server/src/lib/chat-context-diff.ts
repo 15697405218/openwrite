@@ -9,8 +9,10 @@ export interface ContextMark {
 export interface ContextFingerprint {
   characters: ContextMark[]
   current: ContextMark | null
+  focus: ContextMark | null
   locations: ContextMark[]
   lore: ContextMark[]
+  outline: ContextMark | null
   plots: ContextMark[]
   previous: ContextMark[]
   summaries: ContextMark[]
@@ -38,13 +40,26 @@ function chaptersAsListed(items: ChapterPiece[]): Listed[] {
   return items.map((item) => ({ id: item.id, name: item.title, text: item.text }))
 }
 
+function listedOutline(piece: TextPiece | null): Listed[] {
+  if (!piece) {
+    return []
+  }
+  return [{ id: piece.id, name: piece.name, text: piece.text }]
+}
+
 export function fingerprintOf(packet: ChatPacket): ContextFingerprint {
   const current = packet.currentChapter
   return {
     characters: marks(packet.characters),
     current: current ? { id: current.id, name: current.title, hash: textHash(current.text) } : null,
+    focus: packet.focus
+      ? { id: packet.focus.id, name: packet.focus.name, hash: textHash(packet.focus.text) }
+      : null,
     locations: marks(packet.locations),
     lore: marks(packet.lore),
+    outline: packet.outline
+      ? { id: packet.outline.id, name: packet.outline.name, hash: textHash(packet.outline.text) }
+      : null,
     plots: marks(packet.plotThreads),
     previous: marks(chaptersAsListed(packet.previousChapters)),
     summaries: marks(chaptersAsListed(packet.summaries)),
@@ -73,7 +88,14 @@ export function readFingerprint(raw: string | null): ContextFingerprint | null {
     return null
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<ContextFingerprint>
+    const parsed = JSON.parse(raw) as Partial<ContextFingerprint> & {
+      book?: unknown
+      detailOutlines?: unknown
+      volumeOutlines?: unknown
+    }
+    if (legacyOutlineFingerprint(parsed)) {
+      return null
+    }
     const characters = markList(parsed.characters)
     const locations = markList(parsed.locations)
     const lore = markList(parsed.lore)
@@ -94,10 +116,40 @@ export function readFingerprint(raw: string | null): ContextFingerprint | null {
     ) {
       return null
     }
-    return { characters, current, locations, lore, plots, previous, summaries }
+    return {
+      characters,
+      current,
+      focus: optionalMark(parsed.focus),
+      locations,
+      lore,
+      outline: optionalMark(parsed.outline),
+      plots,
+      previous,
+      summaries,
+    }
   } catch {
     return null
   }
+}
+
+function legacyOutlineFingerprint(value: {
+  book?: unknown
+  detailOutlines?: unknown
+  outline?: unknown
+  volumeOutlines?: unknown
+}): boolean {
+  return (
+    value.volumeOutlines !== undefined ||
+    value.detailOutlines !== undefined ||
+    (value.book !== undefined && value.outline === undefined)
+  )
+}
+
+function optionalMark(value: unknown): ContextMark | null {
+  if (value === undefined || value === null) {
+    return null
+  }
+  return isMark(value) ? value : null
 }
 
 function pieceLine(item: Listed): string {
@@ -147,7 +199,17 @@ function inventory(packet: ChatPacket): string {
   const chapter = packet.currentChapter?.title ?? "none"
   const names = (items: TextPiece[]) => items.map((item) => item.name).join(",") || "none"
   const titles = (items: ChapterPiece[]) => items.map((item) => item.title).join(",") || "none"
-  return `Attached: chapter=${chapter}; characters=${names(packet.characters)}; locations=${names(packet.locations)}; plots=${names(packet.plotThreads)}; lore=${names(packet.lore)}; previous=${titles(packet.previousChapters)}; summaries=${titles(packet.summaries)}`
+  return [
+    `Attached: chapter=${chapter}`,
+    `characters=${names(packet.characters)}`,
+    `locations=${names(packet.locations)}`,
+    `plots=${names(packet.plotThreads)}`,
+    `lore=${names(packet.lore)}`,
+    `previous=${titles(packet.previousChapters)}`,
+    `summaries=${titles(packet.summaries)}`,
+    `outline=${packet.outline?.name ?? "none"}`,
+    `focus=${packet.focus?.name ?? "none"}`,
+  ].join("; ")
 }
 
 function pushPieces(lines: string[], heading: string, items: Listed[], asChapter: boolean) {
@@ -178,6 +240,8 @@ function renderFull(packet: ChatPacket): string {
   pushPieces(lines, "WORLD:", packet.lore, false)
   pushPieces(lines, "PLOT THREADS:", packet.plotThreads, false)
   pushPieces(lines, "CHAPTER SUMMARIES:", chaptersAsListed(packet.summaries), true)
+  pushPieces(lines, "OUTLINE:", listedOutline(packet.outline), true)
+  pushPieces(lines, "OPEN DOCUMENT:", listedOutline(packet.focus), true)
   return lines.join("\n")
 }
 
@@ -223,6 +287,8 @@ function renderDelta(packet: ChatPacket, previous: ContextFingerprint): string |
     classify(previous.lore, packet.lore),
     classify(previous.plots, packet.plotThreads),
     classify(previous.summaries, chaptersAsListed(packet.summaries)),
+    classify(previous.outline ? [previous.outline] : [], listedOutline(packet.outline)),
+    classify(previous.focus ? [previous.focus] : [], listedOutline(packet.focus)),
   ]
   if (!hasChange(groups)) {
     return null
@@ -240,12 +306,14 @@ function renderDelta(packet: ChatPacket, previous: ContextFingerprint): string |
     "WORLD",
     "PLOT THREADS",
     "CHAPTER SUMMARIES",
+    "OUTLINE",
+    "OPEN DOCUMENT",
   ]
   for (let index = 0; index < groups.length; index += 1) {
     const group = groups.at(index)
     const label = labels.at(index)
     if (group && label) {
-      pushGroup(lines, label, group, index < 2 || index === 6)
+      pushGroup(lines, label, group, index < 2 || index >= 6)
     }
   }
   const unchanged = sameNames(groups)

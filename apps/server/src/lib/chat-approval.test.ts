@@ -32,6 +32,8 @@ function packet(): ChatPacket {
     lore: [],
     plotThreads: [],
     summaries: [],
+    outline: null,
+    focus: null,
   }
 }
 

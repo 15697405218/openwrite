@@ -16,8 +16,17 @@ describe("manuscript tools", () => {
       "read_plot",
       "list_lore",
       "read_lore",
+      "read_outline",
+      "list_notes",
+      "read_note",
       "search_text",
       "append_to_chapter",
+      "append_to_outline",
+      "replace_in_outline",
+      "append_to_entry",
+      "replace_in_entry",
+      "create_entry",
+      "delete_entry",
       "replace_in_chapter",
     ])
     const search = manuscriptTools.find((tool) => tool.function.name === "search_text")

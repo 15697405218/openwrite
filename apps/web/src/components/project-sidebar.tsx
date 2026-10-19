@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
-import { ChevronDown, ChevronRight, FileText, PenTool, Plus, Scroll } from "lucide-react"
+import { Link, useRouterState } from "@tanstack/react-router"
+import { ChevronDown, ChevronRight, FileText, ListTree, PenTool, Plus, Scroll } from "lucide-react"
 import { useState } from "react"
 import { CharacterSidebarSection } from "@/components/character-sidebar-section"
 import CodexModal from "@/components/codex-modal"
@@ -102,6 +102,7 @@ function CollapsibleSection({
 
 export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
   const { messages: m } = useLocale()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
   const [isCodexModalOpen, setIsCodexModalOpen] = useState(false)
   const [codexModalConfig, setCodexModalConfig] = useState<{
     initialType?: string | null
@@ -131,26 +132,12 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
   // Fetch plot threads
   const { data: plotThreads = [] } = useQuery({
     queryKey: ["plot", projectId],
-    queryFn: async () => {
-      const result = await api.plot.list(projectId)
-      return result.map((thread) => ({
-        id: thread.id,
-        name: thread.title,
-        role: thread.status || "Planned",
-      }))
-    },
+    queryFn: () => api.plot.list(projectId),
   })
 
   const { data: notes = [] } = useQuery({
     queryKey: ["notes", projectId],
-    queryFn: async () => {
-      const result = await api.notes.list(projectId)
-      return result.map((entry) => ({
-        id: entry.id,
-        name: entry.name,
-        role: "",
-      }))
-    },
+    queryFn: () => api.notes.list(projectId),
   })
 
   const toggleCodexSection = (section: string) => {
@@ -183,7 +170,7 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild isActive={pathname === `/projects/${projectId}/write`}>
                     <Link params={{ projectId }} to="/projects/$projectId/write">
                       <PenTool />
                       <span>{m.sidebar.write}</span>
@@ -191,10 +178,24 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === `/projects/${projectId}/canvas`}
+                  >
                     <Link params={{ projectId }} to="/projects/$projectId/canvas">
                       <FileText />
                       <span>{m.sidebar.canvas}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === `/projects/${projectId}/outline`}
+                  >
+                    <Link params={{ projectId }} to="/projects/$projectId/outline">
+                      <ListTree />
+                      <span>{m.sidebar.outline}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -240,7 +241,11 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                 <CollapsibleSection
                   icon={FileText}
                   isExpanded={expandedCodexSections.plot}
-                  items={plotThreads}
+                  items={plotThreads.map((thread) => ({
+                    id: thread.id,
+                    name: thread.title ?? "",
+                    role: thread.status || "Planned",
+                  }))}
                   onOpenModal={openCodexModal}
                   onToggle={() => toggleCodexSection("plot")}
                   secondaryField="role"
@@ -252,7 +257,11 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
                 <CollapsibleSection
                   icon={FileText}
                   isExpanded={expandedCodexSections.notes}
-                  items={notes}
+                  items={notes.map((entry) => ({
+                    id: entry.id,
+                    name: entry.name,
+                    role: "",
+                  }))}
                   onOpenModal={openCodexModal}
                   onToggle={() => toggleCodexSection("notes")}
                   secondaryField="role"

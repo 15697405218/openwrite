@@ -33,6 +33,19 @@ export interface SaveChapterContentResult {
   wordCount: number
 }
 
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  const ids: string[] = []
+  for (const item of value) {
+    if (typeof item === "string") {
+      ids.push(item)
+    }
+  }
+  return ids
+}
+
 export const chaptersApi = {
   async list(projectId: string): Promise<Chapter[]> {
     const response = await apiCall(`/api/projects/${projectId}/chapters`)
@@ -45,6 +58,7 @@ export const chaptersApi = {
       characterIds?: string[]
       locationIds?: string[]
       plotIds?: string[]
+      skipSummary?: boolean
       title?: string
       volumeId?: string
       volumeTitle?: string
@@ -56,10 +70,29 @@ export const chaptersApi = {
     })) as { id: string; previousSummary?: boolean; success: boolean }
   },
 
+  async bindings(
+    projectId: string,
+    chapterId: string
+  ): Promise<{ characterIds: string[]; locationIds: string[]; plotIds: string[] }> {
+    const response = await apiCall(`/api/projects/${projectId}/chapters/${chapterId}/bindings`)
+    return {
+      characterIds: stringList(response.characterIds),
+      locationIds: stringList(response.locationIds),
+      plotIds: stringList(response.plotIds),
+    }
+  },
+
   async update(
     projectId: string,
     chapterId: string,
-    data: { title?: string; summary?: string; status?: string }
+    data: {
+      characterIds?: string[]
+      locationIds?: string[]
+      plotIds?: string[]
+      status?: string
+      summary?: string
+      title?: string
+    }
   ): Promise<{ success: boolean }> {
     return (await apiCall(`/api/projects/${projectId}/chapters/${chapterId}`, {
       method: "PUT",
