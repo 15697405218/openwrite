@@ -25,11 +25,6 @@ export function isExpandableSubType(subType: string | null): subType is Expandab
   return subType !== null && subType in EXPANSION_CHILD_SUBTYPE
 }
 
-export const EXPANSION_SYSTEM_PROMPT = `You are a story architect for OpenWrite.
-You break a story element into the next level of structure, in narrative order.
-Respond with ONLY a JSON array, no prose, no markdown fences. Each element is an object:
-{"title": "short evocative title", "description": "1-3 sentences describing what happens"}`
-
 const MAX_CONTEXT_ITEMS = 8
 const MAX_TITLE_CHARS = 200
 const MAX_DESCRIPTION_CHARS = 1000

@@ -2,13 +2,12 @@ import { and, asc, eq } from "drizzle-orm"
 import { type Context, Hono } from "hono"
 import { db } from "../db"
 import { aiProvider } from "../db/schema"
-import { SUMMARY_SYSTEM, summaryRequest } from "../lib/chat-memory"
+import { summaryRequest } from "../lib/chat-memory"
 import type { ModelToolCall, ProviderMessage } from "../lib/chat-model"
 import { listVisibleChat, readChatPause } from "../lib/chat-store"
 import type { ManuscriptTool } from "../lib/chat-tool-schema"
 import { replyInThread, resumeCutoffInThread, resumeInThread } from "../lib/chat-turn"
 import {
-  COMPLETION_SYSTEM,
   cleanContinuation,
   deepseekCompletionExtras,
   MIN_COMPLETION_PREFIX,
@@ -20,7 +19,6 @@ import {
   clipKnownNames,
   emptyImportExtract,
   IMPORT_EXTRACT_MAX_TOKENS,
-  IMPORT_EXTRACT_SYSTEM,
   importExtractPrompt,
   parseImportExtract,
 } from "../lib/import-extract"
@@ -31,6 +29,7 @@ import {
   CHAT_MAX_TOKENS,
   CONVERSATION_SUMMARY_MAX_TOKENS,
 } from "../lib/output-budget"
+import { readPrompt } from "../lib/prompt-files"
 import { requireAuth } from "../middleware/auth"
 
 export interface AiRuntimeEnv {
@@ -696,7 +695,7 @@ aiRouter.post("/chat", requireAuth, async (c: AppContext) => {
       const summarized = await runCompletionForUser({
         userId: user.id,
         env: c.env,
-        system: SUMMARY_SYSTEM,
+        system: readPrompt("conversation-summary"),
         messages: [{ role: "user", content: summaryRequest(previous, folded) }],
         model,
         maxTokens: CONVERSATION_SUMMARY_MAX_TOKENS,
@@ -930,7 +929,7 @@ aiRouter.post("/complete", requireAuth, async (c: AppContext) => {
   const result = await runCompletionForUser({
     userId: user.id,
     env: c.env,
-    system: COMPLETION_SYSTEM,
+    system: readPrompt("completion"),
     messages: [{ role: "user", content: prefix }],
     disableThinking: true,
     model: typeof body.model === "string" ? body.model : undefined,
@@ -967,7 +966,7 @@ aiRouter.post("/import-extract", requireAuth, async (c: AppContext) => {
   const result = await runCompletionForUser({
     userId: user.id,
     env: c.env,
-    system: IMPORT_EXTRACT_SYSTEM,
+    system: readPrompt("import-extract"),
     messages: [
       {
         role: "user",

@@ -9,7 +9,7 @@ import {
   type WriteDecision,
   type WriteProposal,
 } from "./chat-approval"
-import { BASE_SYSTEM_PROMPT, type ChatPacket } from "./chat-context"
+import type { ChatPacket } from "./chat-context"
 import { contextUpdate, readFingerprint } from "./chat-context-diff"
 import {
   cutoffHistory,
@@ -33,9 +33,10 @@ import {
   saveChatSummary,
   type VisibleChatMessage,
 } from "./chat-store"
-import { CHAT_TOOL_GUIDE, type ManuscriptTool, manuscriptTools } from "./chat-tool-schema"
+import { type ManuscriptTool, manuscriptTools } from "./chat-tool-schema"
 import { executeChatTool } from "./chat-tools"
 import { type ChapterEdit, describeWrite } from "./chat-write"
+import { readPrompt } from "./prompt-files"
 
 const MAX_TOOL_ROUNDS = 8
 const MAX_USER_CHARS = 8000
@@ -53,9 +54,9 @@ interface CompleteTurn {
 
 export function chatSystemPrompt(packet: ChatPacket, summary: string | null): string {
   const lines = [
-    BASE_SYSTEM_PROMPT,
+    readPrompt("chat-system"),
     "",
-    CHAT_TOOL_GUIDE,
+    readPrompt("chat-tools"),
     "",
     `Book: ${packet.title} (${packet.type})`,
   ]

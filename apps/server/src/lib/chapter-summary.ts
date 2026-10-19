@@ -5,15 +5,10 @@ import { type AiRuntimeEnv, isCompletionFailure, runCompletionForUser } from "..
 import { CHAPTER_BODY_CHARS } from "./chat-context"
 import { htmlToPlainText } from "./html-text"
 import { CHAPTER_SUMMARY_MAX_TOKENS } from "./output-budget"
+import { readPrompt } from "./prompt-files"
 
 const SUMMARY_SOURCE_CHARS = CHAPTER_BODY_CHARS
 const SUMMARY_MAX_CHARS = 2000
-
-const SUMMARY_SYSTEM = `You write concise chapter summaries for fiction authors.
-Summarize the chapter in the same language as the chapter.
-Cover what happens, who is involved, and what changed.
-Write 120 to 300 words, or the same amount in Chinese characters.
-Plain prose only. No title, no bullet list, and no preamble.`
 
 export interface SummaryEnv {
   BETTER_AUTH_SECRET: string
@@ -67,7 +62,7 @@ export async function generateChapterSummary(options: {
   const result = await runCompletionForUser({
     userId: options.userId,
     env: asAiEnv(options.env),
-    system: SUMMARY_SYSTEM,
+    system: readPrompt("chapter-summary"),
     maxTokens: CHAPTER_SUMMARY_MAX_TOKENS,
     messages: [
       {

@@ -28,10 +28,6 @@ export function deepseekCompletionExtras(url: string): { thinking?: { type: "dis
   return { thinking: { type: "disabled" } }
 }
 
-export const COMPLETION_SYSTEM = `Continue the fiction in the same language as the passage.
-Write only the next few sentences that follow the passage.
-Do not repeat the passage. Do not add a title, notes, or quotation marks around the continuation.`
-
 export function readCompletionPrefix(value: unknown): string {
   if (typeof value !== "string") {
     return ""

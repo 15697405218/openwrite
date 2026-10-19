@@ -1,12 +1,9 @@
+import { readPrompt } from "./prompt-files"
+
 export const CHAPTER_BODY_CHARS = 100_000
 const CURRENT_CHAPTER_CHARS = CHAPTER_BODY_CHARS
 const PREVIOUS_CHAPTER_CHARS = CHAPTER_BODY_CHARS
 const SUMMARY_CHARS = 1500
-
-export const BASE_SYSTEM_PROMPT = `You are a thoughtful writing assistant for fiction writers using OpenWrite.
-Help with character development, plot structure, pacing, dialogue, world-building, and prose style.
-Be specific and constructive. Keep responses concise enough to read in a sidebar — prefer a few focused paragraphs or a short list over an essay.
-When the writer asks for prose (a rewrite, a continuation, a description), provide it directly so it can be inserted into their manuscript.`
 
 export interface NamedText {
   name: string
@@ -141,11 +138,12 @@ function pushChapters(lines: string[], heading: string, chapters: ChapterSnippet
 }
 
 export function assembleChatPrompt(input: ChatPromptInput | null): string {
+  const system = readPrompt("chat-system")
   if (!input) {
-    return BASE_SYSTEM_PROMPT
+    return system
   }
 
-  const lines = [BASE_SYSTEM_PROMPT, "", "The writer is working on this project:"]
+  const lines = [system, "", "The writer is working on this project:"]
   lines.push(`- Title: ${input.title} (${input.type})`)
   if (input.genre) {
     lines.push(`- Genre: ${input.genre}`)

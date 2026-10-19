@@ -6,10 +6,6 @@ export interface StoredChatMessage {
   role: "assistant" | "context" | "user"
 }
 
-export const SUMMARY_SYSTEM = `你是对话压缩器。把材料压成一段中文摘要，给后续写作助手接着用。
-只保留：用户在问什么、已经定下的写法或情节决定、还没答完的追问、当时附带的是哪一章。
-不要复述章节正文，不要编造，不要写成对用户的回复。不超过 400 字。只输出摘要正文。`
-
 export function messagesAfter(
   messages: StoredChatMessage[],
   summarizedThroughId: string | null

@@ -4,10 +4,10 @@ import { z } from "zod"
 import { db } from "../db"
 import { chapter, graphConnection, graphNode, project, textBlock } from "../db/schema"
 import { CANVAS_MAX_TOKENS } from "../lib/output-budget"
+import { readPrompt } from "../lib/prompt-files"
 import {
   buildExpansionPrompt,
   EXPANSION_CHILD_SUBTYPE,
-  EXPANSION_SYSTEM_PROMPT,
   isExpandableSubType,
   parseExpansionResponse,
 } from "../lib/story-expansion"
@@ -625,10 +625,6 @@ app.openapi(
 // ---------------------------------------------------------------------------
 // AI generation for a story element node, using its graph connections as context
 
-const GENERATION_SYSTEM_PROMPT = `You are a fiction ghostwriter for OpenWrite.
-Write polished narrative prose for the requested story element, staying consistent with the provided characters, settings, lore, and preceding events.
-Match the tone of any existing text. Output ONLY the prose passage — no preamble, no headings, no commentary.`
-
 const TRUNCATE_DESCRIPTION = 300
 const TRUNCATE_PREDECESSOR_TEXT = 1200
 const TRUNCATE_EXISTING_TEXT = 2000
@@ -910,7 +906,7 @@ app.openapi(
     const result = await runCompletionForUser({
       userId: user.id,
       env: c.env,
-      system: GENERATION_SYSTEM_PROMPT,
+      system: readPrompt("story-generation"),
       messages: [{ role: "user", content: prompt }],
       maxTokens: CANVAS_MAX_TOKENS,
       model,
@@ -1085,7 +1081,7 @@ app.openapi(
     const result = await runCompletionForUser({
       userId: user.id,
       env: c.env,
-      system: EXPANSION_SYSTEM_PROMPT,
+      system: readPrompt("story-expansion"),
       messages: [{ role: "user", content: prompt }],
       maxTokens: CANVAS_MAX_TOKENS,
       model,
